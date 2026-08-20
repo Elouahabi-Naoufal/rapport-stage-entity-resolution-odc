@@ -37,6 +37,62 @@ Pays & \texttt{CODE\_PAYS}, \texttt{PAYS\_PARTENAIRE} & \texttt{CODE\_PAYS\_R}, 
 
 \noindent\textbf{Cas particulier :} les anciens enregistrements (antérieurs à la mise en place de la normalisation OdC) ont les colonnes \texttt{\_R} à NULL. Les règles de traitement doivent donc être hybrides : utiliser \texttt{\_R} quand disponible, et se rabattre sur le champ bruité sinon.
 
+% ---- Schéma architecture duale dirty / _R ----
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  rowdirty/.style={rectangle, draw=orange!70!black, fill=orange!15, minimum width=4.2cm, minimum height=0.55cm, text centered},
+  rowclean/.style={rectangle, draw=teal!70!black,  fill=teal!15,  minimum width=4.2cm, minimum height=0.55cm, text centered},
+  rowkey/.style ={rectangle, draw=gray!60,         fill=gray!10,  minimum width=4.2cm, minimum height=0.55cm, text centered},
+  header/.style ={rectangle, draw=black, fill=black!80, text=white, minimum width=4.2cm, minimum height=0.65cm, text centered, font=\small\bfseries},
+  arrow/.style  ={-{Stealth[length=4pt]}, thick, gray!60}
+]
+
+% ---- Colonne GAUCHE : valeurs déclarées (dirty) ----
+\node[header] (hL) at (0,0) {Valeur déclarée (banque)};
+\node[rowdirty, below=0pt of hL] (rc)    {\texttt{RC}};
+\node[rowdirty, below=0pt of rc]  (rs)    {\texttt{RAISON\_SOCIALE}};
+\node[rowdirty, below=0pt of rs]  (do)    {\texttt{DONNEUR\_ORDRE}};
+\node[rowdirty, below=0pt of do]  (cb)    {\texttt{CODE\_BANQUE}};
+\node[rowdirty, below=0pt of cb]  (cg)    {\texttt{CODE\_GUICHET}};
+\node[rowdirty, below=0pt of cg]  (ce)    {\texttt{CENTRE}};
+\node[rowdirty, below=0pt of ce]  (co)    {\texttt{CODE\_OPERATION}};
+\node[rowdirty, below=0pt of co]  (cp)    {\texttt{CODE\_PAYS}};
+\node[rowdirty, below=0pt of cp]  (md)    {\texttt{MONTANT\_DHS}};
+
+% ---- Colonne DROITE : valeurs corrigées (_R) ----
+\node[header]  (hR) at (5.4,0) {Valeur corrigée OdC (\_R)};
+\node[rowclean, below=0pt of hR] (rcr)   {\texttt{RC\_R}};
+\node[rowclean, below=0pt of rcr] (rsr)  {\texttt{RAISON\_SOCIALE\_R}};
+\node[rowclean, below=0pt of rsr] (dor)  {\texttt{DONNEUR\_ORDRE\_R}};
+\node[rowclean, below=0pt of dor] (cbr)  {\texttt{CODE\_BANQUE\_BAM} \textsuperscript{*}};
+\node[rowclean, below=0pt of cbr] (cgr)  {\texttt{CODE\_GUICHET\_BAM} \textsuperscript{*}};
+\node[rowclean, below=0pt of cgr] (cer)  {\texttt{CENTRE\_R}};
+\node[rowclean, below=0pt of cer] (cor)  {\texttt{CODE\_OPERATION\_R}};
+\node[rowclean, below=0pt of cor] (cpr)  {\texttt{CODE\_PAYS\_R}};
+\node[rowclean, below=0pt of cpr] (mdr)  {\texttt{MONTANT\_DHS\_CALC}};
+
+% ---- Colonne CENTRE : clé primaire ----
+\node[rowkey] (id) at (2.7, -0.325) {\texttt{ID\_FORMULE} \textbf{(PK)}};
+
+% ---- Flèches dirty → _R ----
+\foreach \l/\r in {rc/rcr, rs/rsr, do/dor, cb/cbr, cg/cgr, ce/cer, co/cor, cp/cpr, md/mdr}{
+  \draw[arrow] (\l.east) -- (\r.west);
+}
+
+% ---- Légende ----
+\node[rowdirty, minimum width=2.2cm] (leg1) at (1.0, -6.2) {Bruité (banque)};
+\node[rowclean, minimum width=2.2cm] (leg2) at (4.0, -6.2) {Vérifié OdC (\_R)};
+\node[below=2pt of leg1, font=\footnotesize, text=orange!80!black] {Peut contenir des erreurs};
+\node[below=2pt of leg2, font=\footnotesize, text=teal!70!black]   {Toujours fiable};
+\node[font=\footnotesize, gray] at (2.7, -7.1) {\textsuperscript{*} Toujours correct — référentiel BAM};
+
+\end{tikzpicture}
+\caption{Architecture duale de \texttt{RFF.formule\_T\_clean} — colonnes déclarées vs colonnes corrigées OdC}
+\end{figure}
+% ---- Fin schéma ----
+
 \subsection{Les tables de référence}
 
 Le projet s'appuie sur cinq tables de référence réelles, extraites du fichier \texttt{Operation\_Bancaire.xlsx} fourni par l'encadrante :
