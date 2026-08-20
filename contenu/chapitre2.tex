@@ -125,13 +125,13 @@ Le projet s'appuie sur cinq tables de référence réelles, extraites du fichier
 \definecolor{ocOrange}{HTML}{D97F26}
 \tikzset{
   hdrteal/.style={rectangle, draw=black, thick, fill=ocTeal, text=white,
-    font=\bfseries\footnotesize, align=center, text width=3.4cm, inner sep=5pt},
+    font=\bfseries\scriptsize, align=center, text width=2.6cm, inner sep=4pt},
   hdrorange/.style={rectangle, draw=black, thick, fill=ocOrange, text=white,
-    font=\bfseries\footnotesize, align=center, text width=3.9cm, inner sep=5pt},
+    font=\bfseries\scriptsize, align=center, text width=3.0cm, inner sep=4pt},
   tblbody/.style={rectangle, draw=black, thick, fill=white, text=black,
-    font=\footnotesize, align=left, text width=3.4cm, inner sep=5pt},
+    font=\scriptsize, align=left, text width=2.6cm, inner sep=4pt},
   tblbodywide/.style={rectangle, draw=black, thick, fill=white, text=black,
-    font=\footnotesize, align=left, text width=3.9cm, inner sep=5pt},
+    font=\scriptsize, align=left, text width=3.0cm, inner sep=4pt},
   fkarrow/.style={-{Latex[length=2.2mm]}, thick, ocOrange},
   refkarrow/.style={-{Latex[length=2.2mm]}, thick, ocTeal},
   faillink/.style={-{Latex[length=2.2mm]}, thick, dashed, red},
@@ -140,7 +140,7 @@ Le projet s'appuie sur cinq tables de référence réelles, extraites du fichier
 \begin{figure}[H]
 \centering
 \small
-\begin{tikzpicture}[node distance=0pt]
+\begin{tikzpicture}[node distance=0pt, scale=0.82, every node/.style={transform shape}]
 
 \node[hdrteal, anchor=north] (region-h) at (0,12)
   {RFF.Region \\ \footnotesize\normalfont (18 rows)};

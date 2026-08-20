@@ -207,31 +207,6 @@ Ce projet mobilise un ensemble de compétences à l'intersection de plusieurs do
 
 Le stage s'est déroulé sur une période de deux mois, du 1\textsuperscript{er} juillet au 31 août 2026, soit 44 jours ouvrables répartis en 8 semaines et demie. Le planning ci-dessous reflète la progression \textbf{réelle} du projet, organisée en \textbf{six phases successives} couvrant l'intégralité du cycle de développement : de la recherche initiale jusqu'au déploiement de la solution complète (pipeline ML, API backend, interface utilisateur).
 
-\noindent Le projet s'articule autour de six phases dont les objectifs, livrables et durées sont décrits dans le tableau suivant :
-
-\begin{table}[H]
-\centering
-\caption{Description des six phases du stage}
-\renewcommand{\arraystretch}{1.4}
-\begin{tabular}{|c|p{3.5cm}|p{4.5cm}|p{4cm}|c|}
-\hline
-\textbf{Phase} & \textbf{Intitulé} & \textbf{Objectifs} & \textbf{Livrables} & \textbf{Durée} \\
-\hline
-1 & Recherche \& Compréhension & Maîtriser le domaine métier (IGOC, RFF, schéma BDD), étudier l'état de l'art Entity Resolution, Splink et XGBoost & Documentation technique, classification des champs, choix d'architecture & 2 semaines \\
-\hline
-2 & Implémentation ML & Construire le générateur de données synthétiques, la couche de nettoyage, le pipeline Splink (avec investigation de l'échec v1) et le classificateur XGBoost & \texttt{splink\_dedup.py}, \texttt{xgboost\_complement.py}, \texttt{generator\_v2.py}, \texttt{ground\_truth.csv} & 4 semaines \\
-\hline
-3 & Backend API Flask & Développer l'API REST exposant le pipeline ML : gestion des jobs asynchrones, routes résultats/config/health, services métriques & \texttt{api/app.py}, routes, services, \texttt{requirements.txt} & 1,5 semaine \\
-\hline
-4 & Frontend Next.js & Concevoir l'interface utilisateur (TypeScript + Tailwind CSS) : dashboard, pages analyse/résultats/runs/settings, intégration API & \texttt{ui/} (Next.js), composants, pages, appels REST & 1,5 semaine \\
-\hline
-5 & Déploiement Docker & Conteneuriser la solution complète (API + UI) et orchestrer avec Docker Compose & \texttt{Dockerfile.api}, \texttt{Dockerfile.ui}, \texttt{docker-compose.yml} & 1 semaine \\
-\hline
-6 & Rédaction du rapport & Rédiger et structurer le rapport de stage en quatre chapitres, intégrer les schémas et diagrammes & Rapport final (PDF) & 2 semaines \\
-\hline
-\end{tabular}
-\end{table}
-
 % ===== GANTT COMPLET =====
 \begin{landscape}
 \begin{figure}[H]
@@ -239,23 +214,23 @@ Le stage s'est déroulé sur une période de deux mois, du 1\textsuperscript{er}
 \begin{ganttchart}[
     hgrid,
     vgrid={*4{draw=none}, {dotted, gray!50}},
-    x unit=0.52cm,
-    y unit title=0.58cm,
-    y unit chart=0.62cm,
+    x unit=0.44cm,
+    y unit title=0.52cm,
+    y unit chart=0.54cm,
     title height=1,
-    bar height=0.55,
+    bar height=0.52,
     group right shift=0,
     group top shift=0.65,
-    group height=0.28,
+    group height=0.25,
     bar/.append style={rounded corners=2pt},
     group/.append style={fill=black!70, draw=black},
-    title label font=\scriptsize\bfseries,
-    bar label font=\scriptsize,
-    group label font=\scriptsize\bfseries,
-    milestone label font=\scriptsize\itshape,
-    bar label node/.append style={align=right, text width=5.2cm},
-    group label node/.append style={align=right, text width=5.2cm},
-    milestone label node/.append style={align=right, text width=5.2cm},
+    title label font=\tiny\bfseries,
+    bar label font=\tiny,
+    group label font=\tiny\bfseries,
+    milestone label font=\tiny\itshape,
+    bar label node/.append style={align=right, text width=3.8cm},
+    group label node/.append style={align=right, text width=3.8cm},
+    milestone label node/.append style={align=right, text width=3.8cm},
     canvas/.append style={fill=gray!3},
     title/.append style={fill=black!15, draw=black!30},
 ]{1}{44}
@@ -268,77 +243,75 @@ Le stage s'est déroulé sur une période de deux mois, du 1\textsuperscript{er}
 % ================================================================
 % PHASE 1 — Recherche & Compréhension (S1–S2)
 % ================================================================
-\ganttgroup[group/.append style={fill=teal!70}]{Phase 1 — Recherche \& Compréhension du domaine}{1}{10} \\
-\ganttbar[bar/.append style={fill=teal!40}]{Lecture IGOC 2020, DDB, réglementation change}{1}{3} \\
-\ganttbar[bar/.append style={fill=teal!40}]{Analyse schéma \texttt{formule\_P\_clean} (50 colonnes)}{2}{6} \\
-\ganttbar[bar/.append style={fill=teal!40}]{Étude tables de référence (Banque, Guichet, Centre…)}{4}{7} \\
-\ganttbar[bar/.append style={fill=teal!40}]{État de l'art Entity Resolution, Splink, XGBoost}{6}{10} \\
-\ganttmilestone[milestone/.append style={fill=teal!80}]{Recherche validée — architecture définie}{10} \\
+\ganttgroup[group/.append style={fill=teal!70}]{Ph.1 — Recherche \& Compréhension}{1}{10} \\
+\ganttbar[bar/.append style={fill=teal!40}]{Lecture IGOC 2020, DDB, réglementation}{1}{3} \\
+\ganttbar[bar/.append style={fill=teal!40}]{Analyse schéma \texttt{formule\_P\_clean}}{2}{6} \\
+\ganttbar[bar/.append style={fill=teal!40}]{Étude tables de référence}{4}{7} \\
+\ganttbar[bar/.append style={fill=teal!40}]{État de l'art ER, Splink, XGBoost}{6}{10} \\
+\ganttmilestone[milestone/.append style={fill=teal!80}]{Architecture définie}{10} \\
 
 % ================================================================
 % PHASE 2 — Implémentation ML (S2–S6)
 % ================================================================
-\ganttgroup[group/.append style={fill=orange!70}]{Phase 2 — Implémentation ML (données + pipeline)}{9}{34} \\
-\ganttbar[bar/.append style={fill=orange!30}]{Générateur données synthétiques v1 (50→500 ent.)}{9}{12} \\
-\ganttbar[bar/.append style={fill=red!40}]{\textit{Échec :} noms génériques, Zipf non borné → refacto}{11}{14} \\
-\ganttbar[bar/.append style={fill=orange!50}]{Générateur v2 : vocab. 280K+ noms, cap 800 décl.}{13}{17} \\
-\ganttbar[bar/.append style={fill=orange!50}]{Injection bruit réaliste + \texttt{ground\_truth.csv}}{15}{19} \\
-\ganttbar[bar/.append style={fill=blue!35}]{Couche nettoyage RC / RAISON\_SOCIALE / stratégie \_R}{18}{22} \\
-\ganttbar[bar/.append style={fill=red!35}]{\textit{Splink v1 :} 0,8\,\% précision — investigation cause racine}{20}{25} \\
-\ganttbar[bar/.append style={fill=violet!40}]{Splink v2 : blocage corrigé, veto RC, sweep seuil}{24}{30} \\
-\ganttbar[bar/.append style={fill=violet!40}]{Entraînement EM (2 sessions rotatives, anti-circularité)}{27}{31} \\
-\ganttbar[bar/.append style={fill=green!40}]{XGBoost : feature engineering (23 features) + ablation}{29}{34} \\
-\ganttbar[bar/.append style={fill=cyan!40}]{Optimisation runtime DuckDB (3,2 min / 100K décl.)}{31}{34} \\
-\ganttmilestone[milestone/.append style={fill=orange!80}]{Pipeline ML production-ready (P=72,7\,\% R=100\,\%)}{34} \\
+\ganttgroup[group/.append style={fill=orange!70}]{Ph.2 — Implémentation ML}{9}{34} \\
+\ganttbar[bar/.append style={fill=orange!30}]{Générateur données v1}{9}{12} \\
+\ganttbar[bar/.append style={fill=red!40}]{\textit{Échec v1} → refacto}{11}{14} \\
+\ganttbar[bar/.append style={fill=orange!50}]{Générateur v2 (280K+ noms)}{13}{17} \\
+\ganttbar[bar/.append style={fill=orange!50}]{Bruit réaliste + ground\_truth}{15}{19} \\
+\ganttbar[bar/.append style={fill=blue!35}]{Nettoyage RC / RAISON\_SOCIALE}{18}{22} \\
+\ganttbar[bar/.append style={fill=red!35}]{\textit{Splink v1 :} 0,8\,\% → investigation}{20}{25} \\
+\ganttbar[bar/.append style={fill=violet!40}]{Splink v2 : veto RC, sweep seuil}{24}{30} \\
+\ganttbar[bar/.append style={fill=violet!40}]{Entraînement EM (2 sessions)}{27}{31} \\
+\ganttbar[bar/.append style={fill=green!40}]{XGBoost : 23 features + ablation}{29}{34} \\
+\ganttbar[bar/.append style={fill=cyan!40}]{Optimisation DuckDB}{31}{34} \\
+\ganttmilestone[milestone/.append style={fill=orange!80}]{Pipeline ML (P=72,7\,\% R=100\,\%)}{34} \\
 
 % ================================================================
 % PHASE 3 — Backend API Flask (S5–S6)
 % ================================================================
-\ganttgroup[group/.append style={fill=blue!65}]{Phase 3 — Backend API Flask}{30}{38} \\
-\ganttbar[bar/.append style={fill=blue!35}]{Architecture REST : routes jobs, results, config, health}{30}{33} \\
-\ganttbar[bar/.append style={fill=blue!35}]{Job manager : exécution async splink\_dedup + xgboost}{31}{35} \\
-\ganttbar[bar/.append style={fill=blue!35}]{Services : metrics, résultats, validation config}{33}{36} \\
-\ganttbar[bar/.append style={fill=blue!35}]{Tests API + intégration pipeline ML}{35}{38} \\
-\ganttmilestone[milestone/.append style={fill=blue!80}]{API Flask opérationnelle (port 8083)}{38} \\
+\ganttgroup[group/.append style={fill=blue!65}]{Ph.3 — Backend API Flask}{30}{38} \\
+\ganttbar[bar/.append style={fill=blue!35}]{Routes jobs, results, config, health}{30}{33} \\
+\ganttbar[bar/.append style={fill=blue!35}]{Job manager async}{31}{35} \\
+\ganttbar[bar/.append style={fill=blue!35}]{Services métriques + validation}{33}{36} \\
+\ganttbar[bar/.append style={fill=blue!35}]{Tests API + intégration ML}{35}{38} \\
+\ganttmilestone[milestone/.append style={fill=blue!80}]{API Flask (port 8083)}{38} \\
 
 % ================================================================
 % PHASE 4 — Frontend Next.js (S6–S7)
 % ================================================================
-\ganttgroup[group/.append style={fill=pink!70, draw=pink!80!black}]{Phase 4 — Frontend Next.js (TypeScript + Tailwind)}{35}{42} \\
-\ganttbar[bar/.append style={fill=pink!40}]{Pages : dashboard, analyse, résultats, runs, settings}{35}{38} \\
-\ganttbar[bar/.append style={fill=pink!40}]{Composants : visualisation clusters, métriques, graphes}{37}{40} \\
-\ganttbar[bar/.append style={fill=pink!40}]{Intégration API — appels REST, gestion états jobs}{38}{41} \\
-\ganttbar[bar/.append style={fill=pink!40}]{Tests UI + responsive design}{40}{42} \\
-\ganttmilestone[milestone/.append style={fill=pink!70!black}]{Interface utilisateur validée (port 4000)}{42} \\
+\ganttgroup[group/.append style={fill=pink!70, draw=pink!80!black}]{Ph.4 — Frontend Next.js}{35}{42} \\
+\ganttbar[bar/.append style={fill=pink!40}]{Pages dashboard, analyse, résultats}{35}{38} \\
+\ganttbar[bar/.append style={fill=pink!40}]{Composants clusters, métriques}{37}{40} \\
+\ganttbar[bar/.append style={fill=pink!40}]{Intégration API REST}{38}{41} \\
+\ganttbar[bar/.append style={fill=pink!40}]{Tests UI + responsive}{40}{42} \\
+\ganttmilestone[milestone/.append style={fill=pink!70!black}]{Interface validée (port 4000)}{42} \\
 
 % ================================================================
 % PHASE 5 — Déploiement Docker (S7–S8)
 % ================================================================
-\ganttgroup[group/.append style={fill=gray!60}]{Phase 5 — Déploiement Docker}{39}{43} \\
-\ganttbar[bar/.append style={fill=gray!35}]{Dockerfile.api + Dockerfile.ui (multi-stage build)}{39}{41} \\
-\ganttbar[bar/.append style={fill=gray!35}]{docker-compose.yml : odc-api + odc-ui + odc-net}{40}{42} \\
-\ganttbar[bar/.append style={fill=gray!35}]{Tests déploiement end-to-end + variables d'environnement}{41}{43} \\
-\ganttmilestone[milestone/.append style={fill=gray!70}]{Stack déployée (API:8083 + UI:4000)}{43} \\
+\ganttgroup[group/.append style={fill=gray!60}]{Ph.5 — Déploiement Docker}{39}{43} \\
+\ganttbar[bar/.append style={fill=gray!35}]{Dockerfiles API + UI}{39}{41} \\
+\ganttbar[bar/.append style={fill=gray!35}]{docker-compose.yml}{40}{42} \\
+\ganttbar[bar/.append style={fill=gray!35}]{Tests end-to-end}{41}{43} \\
+\ganttmilestone[milestone/.append style={fill=gray!70}]{Stack déployée (8083 + 4000)}{43} \\
 
 % ================================================================
 % PHASE 6 — Rédaction rapport (S6–S8, chevauchement)
 % ================================================================
-\ganttgroup[group/.append style={fill=yellow!60, draw=yellow!80!black}]{Phase 6 — Rédaction du rapport}{33}{44} \\
-\ganttbar[bar/.append style={fill=yellow!40}]{Chapitres 1 \& 2 (cadre institutionnel, BDD, état de l'art)}{33}{37} \\
-\ganttbar[bar/.append style={fill=yellow!40}]{Chapitre 3 (pipeline, schémas, architecture)}{37}{41} \\
-\ganttbar[bar/.append style={fill=yellow!40}]{Chapitre 4 (résultats, évaluation, perspectives)}{39}{43} \\
+\ganttgroup[group/.append style={fill=yellow!60, draw=yellow!80!black}]{Ph.6 — Rédaction rapport}{33}{44} \\
+\ganttbar[bar/.append style={fill=yellow!40}]{Chapitres 1 \& 2}{33}{37} \\
+\ganttbar[bar/.append style={fill=yellow!40}]{Chapitre 3}{37}{41} \\
+\ganttbar[bar/.append style={fill=yellow!40}]{Chapitre 4}{39}{43} \\
 \ganttbar[bar/.append style={fill=yellow!50}]{Révision finale et dépôt}{42}{44} \\
 \ganttmilestone[milestone/.append style={fill=yellow!80!black}]{Dépôt rapport final}{44}
 
 \end{ganttchart}
-\caption{Diagramme de Gantt détaillé --- Planning réel du stage (1\textsuperscript{er} juillet -- 31 août 2026). Les barres rouges indiquent les phases d'échec et d'investigation. Les phases 3--5 (Backend, Frontend, Déploiement) s'appuient sur le pipeline ML de la phase 2.}
+\caption{Planning réel du stage (1\textsuperscript{er} juillet -- 31 août 2026, 44 jours ouvrables). Barres rouges = phases d'échec/investigation. Ph.3--5 démarrent en chevauchement avec la fin de Ph.2.}
 \end{figure}
 \end{landscape}
 % ===== FIN GANTT =====
 
-\noindent\textbf{Lecture du diagramme :} les six phases ne sont pas strictement séquentielles — les phases 3 (Backend), 4 (Frontend) et 6 (Rédaction) démarrent en chevauchement avec la fin de la phase 2 (ML), ce qui reflète la réalité d'un projet de stage où la rédaction et le développement avancent en parallèle. Les barres rouges dans la phase 2 matérialisent l'échec du premier modèle Splink (0,8\,\% de précision) et l'investigation de cause racine qui a suivi — représentant à elles seules près d'une semaine de travail. Ce n'est pas une anomalie : c'est le coût réel d'une démarche rigoureuse où chaque échec est traité comme une information diagnostique plutôt que contourné.
-
-\noindent\textbf{Pourquoi ces six phases :} la phase 1 (Recherche) était indispensable avant toute ligne de code — comprendre l'IGOC 2020, le schéma de la base et les contraintes métier a directement conditionné les choix d'architecture. La phase 2 (ML) constitue le cœur technique du projet. Les phases 3 et 4 (Backend + Frontend) transforment le pipeline ML en solution opérationnelle utilisable par les équipes de l'OdC. La phase 5 (Docker) garantit la reproductibilité du déploiement. La phase 6 (Rapport) documente l'ensemble pour assurer la pérennité de la solution.
+\noindent Les six phases ne sont pas strictement séquentielles : les phases Backend, Frontend et Rédaction démarrent en chevauchement avec la fin de la phase ML, ce qui reflète la réalité d'un projet où développement et documentation avancent en parallèle. Les barres rouges matérialisent l'échec du premier modèle Splink (0,8\,\% de précision) et l'investigation qui a suivi — près d'une semaine de travail, traitée comme information diagnostique plutôt que contournée.
 
 \section*{Conclusion}
 

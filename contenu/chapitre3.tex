@@ -330,115 +330,93 @@ Le mode incrémental permet de traiter les \textbf{nouvelles déclarations au fi
   plrej/.style={-{Latex[length=2.2mm]}, thick, dashed, red!65!black},
 }
 
-\begin{landscape}
 \begin{figure}[H]
 \centering
 \small
-\begin{tikzpicture}[node distance=1.0cm]
+\begin{tikzpicture}[node distance=0.7cm, scale=0.78, every node/.style={transform shape}]
 
 \node[plio] (n-input) {RFF.formule\_P\_clean\\100\,000 déclarations, 50 colonnes};
 
-\node[pllayer1, below=1.3cm of n-input] (n-rc)
+\node[pllayer1, below=1.0cm of n-input] (n-rc)
   {\textbf{RC\_CLEAN} --- strip \texttt{"RC/"}, espaces, tirets $\rightarrow$ MAJUSCULES};
 \node[pllayer1, below=of n-rc] (n-rs)
   {\textbf{RS\_CLEAN} --- suppression accents, ponctuation, suffixe \texttt{MAROC}};
 \node[pllayer1, below=of n-rs] (n-hyb)
   {\textbf{Stratégie hybride} --- si \texttt{\_R} non NULL $\rightarrow$ \texttt{\_R}, sinon $\rightarrow$ \texttt{\_CLEAN}};
 
-\node[pllayer2, below=1.3cm of n-hyb] (n-bloc)
+\node[pllayer2, below=1.0cm of n-hyb] (n-bloc)
   {\textbf{Blocage --- 5 règles}\\
-   \texttt{block\_on(RC\_R)} \\
-   \texttt{block\_on(RC)} \\
-   \texttt{CODE\_BANQUE\_BAM + SUBSTR(RC\_R,1,6)} \\
-   \texttt{CODE\_BANQUE\_BAM + SUBSTR(RS\_R,1,8)} \\
-   \texttt{CODE\_GUICHET\_BAM + SUBSTR(RS\_R,1,7)}};
+   \texttt{block\_on(RC\_R)} \quad \texttt{block\_on(RC)} \\
+   \texttt{BAM + SUBSTR(RC\_R,1,6)} \quad \texttt{BAM + SUBSTR(RS\_R,1,8)} \\
+   \texttt{GUICHET\_BAM + SUBSTR(RS\_R,1,7)}};
 \node[pllayer2, below=of n-bloc] (n-comp)
-  {\textbf{Comparaisons}\\
-   JaroWinkler(RC\_R, [0.95, 0.88, 0.80])\\
-   JaroWinkler(RC, [0.95, 0.88, 0.80])\\
-   JaroWinkler(RS\_R, [0.95, 0.88, 0.80])\\
-   ExactMatch(CODE\_BANQUE\_BAM) \quad ExactMatch(CODE\_GUICHET\_BAM)};
+  {\textbf{Comparaisons} --- JaroWinkler(RC, RS, RS\_R) + ExactMatch(BAM, GUICHET)};
 \node[pllayer2, below=of n-comp] (n-em)
   {\textbf{Entraînement EM} --- 2 sessions rotatives (anchor RC\_R, anchor RC)};
 \node[pllayer2, below=of n-em] (n-pred)
-  {\textbf{Prédiction} --- \texttt{match\_probability} pour chaque paire};
-\node[pllayer2, below=of n-pred] (n-veto)
-  {\textbf{Filtre veto RC} --- si $RC_i\neq\emptyset$ et $RC_j\neq\emptyset$ et $RC_i\neq RC_j$ $\Rightarrow$ REJECT};
-\node[pllayer2, below=of n-veto] (n-sweep)
-  {\textbf{Sweep seuil} --- 0.50 $\rightarrow$ 0.90 \quad seuil optimal = 0.80};
-\node[pllayer2, below=of n-sweep] (n-clust)
+  {\textbf{Prédiction} + \textbf{Veto RC} + \textbf{Sweep seuil} (optimal = 0.80)};
+\node[pllayer2, below=of n-pred] (n-clust)
   {\textbf{Clustering} --- composantes connexes};
 
-\node[pldecision, below=1.4cm of n-clust] (n-dec1)
+\node[pldecision, below=1.1cm of n-clust] (n-dec1)
   {\texttt{match\_prob} $\geq$ 0.80 ?};
 
-\node[placcept, right=3.8cm of n-dec1] (n-high)
-  {HAUTE CONFIANCE\\accepté directement\\SOURCE = SPLINK};
+\node[placcept, right=3.2cm of n-dec1] (n-high)
+  {HAUTE CONFIANCE\\SOURCE = SPLINK};
 
-\node[pllayer3, below=1.6cm of n-dec1] (n-feat)
-  {\textbf{Feature engineering}\\
-   13 features identité : JW(RC), JW(RS), JW(DO), same\_banque\_bam,
-   same\_guichet\_bam, rc\_missing\_l/r, both\_rc\_missing\\
-   + 10 features comportementales : same\_devise, same\_operation,
-   same\_sens, log\_amount\_diff, amount\_ratio, discrepancy\_diff\\
-   + \texttt{splink\_prob}};
+\node[pllayer3, below=1.3cm of n-dec1] (n-feat)
+  {\textbf{Feature engineering} --- 13 identité + 10 comportementales + \texttt{splink\_prob}};
 \node[pllayer3, below=of n-feat] (n-xgb)
-  {\textbf{XGBClassifier} --- n\_estimators=300, max\_depth=5, learning\_rate=0.05};
+  {\textbf{XGBClassifier} --- n\_estimators=300, max\_depth=5, lr=0.05};
 \node[pllayer3, below=of n-xgb] (n-split)
   {\textbf{Train/test split par COMPANY} (anti-leakage)};
 
-\node[plreject, left=3.8cm of n-xgb] (n-reject) {NON-MATCH\\REJETÉ};
+\node[plreject, left=3.2cm of n-xgb] (n-reject) {NON-MATCH\\REJETÉ};
 
-\node[pldecision, below=1.4cm of n-split] (n-dec2) {MATCH ?};
+\node[pldecision, below=1.1cm of n-split] (n-dec2) {MATCH ?};
 
-\node[plio, below=2.4cm of n-dec2] (n-output)
+\node[plio, below=1.8cm of n-dec2] (n-output)
   {RFF.entity\_clusters\\
-   ID\_FORMULE, CLUSTER\_ID, CANONICAL\_RC,\\
-   CANONICAL\_NAME, MATCH\_SCORE, SOURCE};
+   ID\_FORMULE, CLUSTER\_ID, CANONICAL\_RC, CANONICAL\_NAME, SOURCE};
 
 \draw[plarr1] (n-input) -- (n-rc);
 \draw[plarr1] (n-rc)    -- (n-rs);
 \draw[plarr1] (n-rs)    -- (n-hyb);
 \draw[plarr2] (n-hyb)   -- (n-bloc);
 \draw[plarr2] (n-bloc)  -- (n-comp)
-  node[midway, right, font=\scriptsize, l2violet, align=left]
-  {$\sim$5 milliards $\rightarrow$ $\sim$2 millions paires};
+  node[midway, right, font=\scriptsize, l2violet] {$\sim$5G $\rightarrow$ $\sim$2M paires};
 \draw[plarr2] (n-comp)  -- (n-em);
 \draw[plarr2] (n-em)    -- (n-pred);
-\draw[plarr2] (n-pred)  -- (n-veto);
-\draw[plarr2] (n-veto)  -- (n-sweep);
-\draw[plarr2] (n-sweep) -- (n-clust);
+\draw[plarr2] (n-pred)  -- (n-clust);
 \draw[plarr2] (n-clust) -- (n-dec1);
 \draw[placc]  (n-dec1.east) -- (n-high.west) node[midway, above, font=\scriptsize] {$\geq$ 0.80};
 \draw[plarr3] (n-dec1.south) -- (n-feat.north)
-  node[midway, right, font=\scriptsize] {0.50 $\le$ P $<$ 0.80 (AMBIGU)};
-\draw[plrej]  (n-dec1.west) -- ++(-1.6,0) |- (n-reject.north)
+  node[midway, right, font=\scriptsize] {0.50 $\le$ P $<$ 0.80};
+\draw[plrej]  (n-dec1.west) -- ++(-1.4,0) |- (n-reject.north)
   node[near start, above, font=\scriptsize] {$<$ 0.50};
 \draw[plarr3] (n-feat)  -- (n-xgb);
 \draw[plarr3] (n-xgb)   -- (n-split);
 \draw[plarr3] (n-split) -- (n-dec2);
-\draw[plrej]  (n-dec2.west) -- ++(-1.6,0) |- (n-reject.south)
+\draw[plrej]  (n-dec2.west) -- ++(-1.4,0) |- (n-reject.south)
   node[near start, below, font=\scriptsize] {NON-MATCH};
-\draw[placc]  (n-dec2.east) -- ++(1.8,0) |- ($(n-output.east)+(0,0.4)$)
+\draw[placc]  (n-dec2.east) -- ++(1.5,0) |- ($(n-output.east)+(0,0.3)$)
   node[near start, above, font=\scriptsize] {MATCH};
-\draw[placc]  (n-high.south) |- ($(n-output.east)+(0,0.8)$)
-  node[near start, right, font=\scriptsize] {SOURCE = SPLINK};
+\draw[placc]  (n-high.south) |- ($(n-output.east)+(0,0.6)$);
 
-\fill[l1blue] ($(n-rc.north west)+(-0.7,0.15)$) rectangle ($(n-hyb.south west)+(-0.25,-0.15)$);
+\fill[l1blue] ($(n-rc.north west)+(-0.6,0.12)$) rectangle ($(n-hyb.south west)+(-0.22,-0.12)$);
 \node[rotate=90, text=white, font=\bfseries\scriptsize] at
-  ($(n-rc.north west)!0.5!(n-hyb.south west)+(-0.475,0)$) {LAYER 1 --- NETTOYAGE};
-\fill[l2violet] ($(n-bloc.north west)+(-0.7,0.15)$) rectangle ($(n-clust.south west)+(-0.25,-0.15)$);
+  ($(n-rc.north west)!0.5!(n-hyb.south west)+(-0.41,0)$) {LAYER 1};
+\fill[l2violet] ($(n-bloc.north west)+(-0.6,0.12)$) rectangle ($(n-clust.south west)+(-0.22,-0.12)$);
 \node[rotate=90, text=white, font=\bfseries\scriptsize] at
-  ($(n-bloc.north west)!0.5!(n-clust.south west)+(-0.475,0)$) {LAYER 2 --- SPLINK / FELLEGI-SUNTER};
-\fill[l3green] ($(n-feat.north west)+(-0.7,0.15)$) rectangle ($(n-split.south west)+(-0.25,-0.15)$);
+  ($(n-bloc.north west)!0.5!(n-clust.south west)+(-0.41,0)$) {LAYER 2 --- SPLINK};
+\fill[l3green] ($(n-feat.north west)+(-0.6,0.12)$) rectangle ($(n-split.south west)+(-0.22,-0.12)$);
 \node[rotate=90, text=white, font=\bfseries\scriptsize] at
-  ($(n-feat.north west)!0.5!(n-split.south west)+(-0.475,0)$) {LAYER 3 --- XGBOOST};
+  ($(n-feat.north west)!0.5!(n-split.south west)+(-0.41,0)$) {LAYER 3};
 
 \end{tikzpicture}
 \caption{Architecture globale du pipeline d'Entity Resolution à 3 couches --- Office des Changes}
 \label{fig:er-pipeline}
 \end{figure}
-\end{landscape}
 
 \section{Pipeline Incrémental — Schéma de Flux}
 
@@ -529,7 +507,7 @@ Le mode incrémental permet de traiter les \textbf{nouvelles déclarations au fi
 \begin{figure}[H]
 \centering
 \small
-\begin{tikzpicture}[every node/.style={font=\small}]
+\begin{tikzpicture}[scale=0.88, every node/.style={transform shape, font=\small}]
 
 \fill[red!22]    (0,0) rectangle (5,1.4);
 \fill[orange!22] (5,0) rectangle (8,1.4);
@@ -538,16 +516,13 @@ Le mode incrémental permet de traiter les \textbf{nouvelles déclarations au fi
 \draw[thick] (5,0) -- (5,1.4);
 \draw[thick] (8,0) -- (8,1.4);
 
-\node[anchor=center, font=\bfseries\scriptsize, text=red!55!black] at (2.5,1.75)
-  {\tikz{\fill[red!45] (0,0) rectangle (0.22,0.22);}\ ZONE 1 --- NON-MATCH};
-\node[anchor=center, font=\bfseries\scriptsize, text=orange!70!black] at (6.5,1.75)
-  {\tikz{\fill[orange!45] (0,0) rectangle (0.22,0.22);}\ ZONE 2 --- AMBIGUË};
-\node[anchor=west, font=\bfseries\scriptsize, text=green!45!black] at (8.1,2.05)
-  {\tikz{\fill[green!45] (0,0) rectangle (0.22,0.22);}\ ZONE 3 --- HAUTE CONFIANCE};
+\node[font=\bfseries\scriptsize, text=red!55!black]    at (2.5,1.85) {\tikz{\fill[red!45] (0,0) rectangle (0.22,0.22);}\ ZONE 1 --- NON-MATCH};
+\node[font=\bfseries\scriptsize, text=orange!70!black] at (6.5,1.85) {\tikz{\fill[orange!45] (0,0) rectangle (0.22,0.22);}\ ZONE 2 --- AMBIGU\"{E}};
+\node[font=\bfseries\scriptsize, text=green!45!black]  at (9.0,1.85) {\tikz{\fill[green!45] (0,0) rectangle (0.22,0.22);}\ ZONE 3};
 
-\node[align=center, font=\footnotesize] at (2.5,0.7) {rejeté directement\\par Splink};
-\node[align=center, font=\footnotesize] at (6.5,0.7) {soumis à\\XGBoost};
-\node[align=center, font=\footnotesize] at (9,0.7)   {accepté\\directement};
+\node[align=center, font=\footnotesize] at (2.5,0.7) {rejet\'{e} directement\\par Splink};
+\node[align=center, font=\footnotesize] at (6.5,0.7) {soumis \`{a}\\XGBoost};
+\node[align=center, font=\footnotesize] at (9.0,0.7) {accept\'{e}\\directement};
 
 \foreach \x in {0,1,2,3,4,5,6,7,8,9,10}{
   \draw[thick] (\x,0) -- (\x,-0.15);
@@ -558,54 +533,39 @@ Le mode incrémental permet de traiter les \textbf{nouvelles déclarations au fi
 \node[font=\scriptsize] at (10,-0.45) {1.00};
 \node[font=\scriptsize] at (5,-0.8) {\textit{match\_probability (Splink)}};
 
-\draw[dashed, orange!70!black] (6.5,0) -- (6.5,-1.05) -- (7,-1.05);
 \node[rectangle, rounded corners=3pt, draw=orange!70!black, thick, fill=orange!8,
-      font=\scriptsize, align=left, text width=7.6cm, inner sep=6pt,
-      anchor=north west] at (3.2,-1.15)
-  {\textbf{Hard positives :} même entreprise, RC corrompu (JW 0.45--0.88)\\[2pt]
-   \textbf{Hard negatives :} entreprises différentes, RS similaire (JW $\geq$ 0.70)};
+      font=\scriptsize, align=left, text width=9.5cm, inner sep=6pt] at (5,-1.9)
+  {\textbf{Hard positives :} m\^{e}me entreprise, RC corrompu (JW 0.45--0.88)\\[2pt]
+   \textbf{Hard negatives :} entreprises diff\'{e}rentes, RS similaire (JW $\geq$ 0.70)};
 
-\node[font=\bfseries\small, anchor=west] at (0,-3.1)
-  {Comparaison des modèles (ablation study) --- score F1};
+\node[font=\bfseries\small] at (5,-3.1) {Comparaison des mod\`{e}les (ablation study) --- score F1};
 
-\node[font=\scriptsize, anchor=west] at (0,-3.55)
+\node[font=\scriptsize] at (5,-3.55)
   {\colorbox{blue!20}{\phantom{x}}\,Identity\quad
    \colorbox{orange!20}{\phantom{x}}\,Behavioral\quad
-   \colorbox{teal!20}{\phantom{x}}\,Identity+Behavioral\quad
+   \colorbox{teal!20}{\phantom{x}}\,Id+Beh\quad
    \colorbox{violet!20}{\phantom{x}}\,Splink only\quad
-   \colorbox{green!35}{\phantom{x}}\,Full system (best)};
+   \colorbox{green!35}{\phantom{x}}\,Full (best)};
 
-\draw[dashed, gray!55] (5,-3.9) -- (5,-9.3);
-\draw[dashed, gray!55] (8,-3.9) -- (8,-9.3);
+\node[align=center, font=\scriptsize] at (5,-4.2) {\textbf{Model A} --- Identity only (JW RC, RS, DO, same\_banque, rc\_missing)};
+\fill[blue!20, draw=blue!60!black, thick] (0,-4.55) rectangle (8.7,-4.05);
+\node[font=\scriptsize\bfseries] at (9.2,-4.3) {0.87};
 
-\node[anchor=east, align=right, font=\scriptsize, text width=6.2cm] at (-0.3,-4.2)
-  {\textbf{Model A --- Identity only}\\
-   JW RC, JW RS, JW DO, same\_banque, same\_guichet, rc\_missing};
-\fill[blue!20, draw=blue!60!black, thick] (0,-4.45) rectangle (8.7,-3.95);
-\node[anchor=west, font=\scriptsize\bfseries] at (8.9,-4.2) {0.87};
-
-\node[anchor=east, align=right, font=\scriptsize, text width=6.2cm] at (-0.3,-5.3)
-  {\textbf{Model B --- Behavioral only}\\
-   same\_devise, same\_operation, log\_amount\_diff, amount\_ratio, ...};
+\node[align=center, font=\scriptsize] at (5,-5.2) {\textbf{Model B} --- Behavioral only (same\_devise, same\_op, amount\_ratio, ...)};
 \fill[orange!20, draw=orange!70!black, thick] (0,-5.55) rectangle (7.2,-5.05);
-\node[anchor=west, font=\scriptsize\bfseries] at (7.4,-5.3) {0.72};
+\node[font=\scriptsize\bfseries] at (7.7,-5.3) {0.72};
 
-\node[anchor=east, align=right, font=\scriptsize, text width=6.2cm] at (-0.3,-6.4)
-  {\textbf{Model C --- Identity + Behavioral}};
-\fill[teal!20, draw=teal!70!black, thick] (0,-6.65) rectangle (9.1,-6.15);
-\node[anchor=west, font=\scriptsize\bfseries] at (9.3,-6.4) {0.91};
+\node[align=center, font=\scriptsize] at (5,-6.2) {\textbf{Model C} --- Identity + Behavioral};
+\fill[teal!20, draw=teal!70!black, thick] (0,-6.55) rectangle (9.1,-6.05);
+\node[font=\scriptsize\bfseries] at (9.6,-6.3) {0.91};
 
-\node[anchor=east, align=right, font=\scriptsize, text width=6.2cm] at (-0.3,-7.5)
-  {\textbf{Model D --- Splink probability only}};
-\fill[violet!20, draw=violet!70!black, thick] (0,-7.75) rectangle (6.5,-7.25);
-\node[anchor=west, font=\scriptsize\bfseries] at (6.7,-7.5) {0.65};
+\node[align=center, font=\scriptsize] at (5,-7.2) {\textbf{Model D} --- Splink probability only};
+\fill[violet!20, draw=violet!70!black, thick] (0,-7.55) rectangle (6.5,-7.05);
+\node[font=\scriptsize\bfseries] at (7.0,-7.3) {0.65};
 
-\node[anchor=east, align=right, font=\scriptsize, text width=6.2cm] at (-0.3,-8.6)
-  {\textbf{Model E --- Full system}\\
-   Identity + Behavioral + Splink prob};
-\fill[green!35, draw=green!55!black, very thick] (0,-8.85) rectangle (9.3,-8.35);
-\node[anchor=west, font=\scriptsize\bfseries] at (9.5,-8.6) {0.93};
-\node[anchor=west, font=\bfseries\scriptsize, text=green!45!black] at (11.1,-8.6) {$\leftarrow$ BEST};
+\node[align=center, font=\scriptsize] at (5,-8.2) {\textbf{Model E} --- Full system (Identity + Behavioral + Splink prob)};
+\fill[green!35, draw=green!55!black, very thick] (0,-8.55) rectangle (9.3,-8.05);
+\node[font=\scriptsize\bfseries] at (9.9,-8.3) {\textbf{0.93} $\leftarrow$ BEST};
 
 \draw[thick] (0,-9.3) -- (10,-9.3);
 \foreach \x/\lab in {0/0.00,2.5/0.25,5/0.50,7.5/0.75,10/1.00}{
@@ -615,13 +575,12 @@ Le mode incrémental permet de traiter les \textbf{nouvelles déclarations au fi
 \node[font=\scriptsize] at (5,-10.0) {\textit{Score F1}};
 
 \node[rectangle, rounded corners=4pt, draw=black!55, thick, fill=yellow!8,
-      font=\footnotesize, align=left, text width=10.2cm, inner sep=8pt] at (5,-11.1)
-  {\textbf{Point clé :} XGBoost ne récupère \textbf{PAS} les faux négatifs de Splink
-   (paires jamais générées par le blocage). Il affine uniquement les paires
-   dans la zone ambiguë 0.50--0.80.};
+      font=\footnotesize, align=left, text width=9.5cm, inner sep=8pt] at (5,-11.1)
+  {\textbf{Point cl\'{e} :} XGBoost n'affine que les paires dans la zone ambig\"{u}e 0.50--0.80.
+   Il ne r\'{e}cup\`{e}re pas les faux n\'{e}gatifs de Splink (paires jamais g\'{e}n\'{e}r\'{e}es par le blocage).};
 
 \end{tikzpicture}
-\caption{Architecture de confiance à trois zones et ablation XGBoost (\texttt{xgboost\_complement.py})}
+\caption{Architecture de confiance \`{a} trois zones et ablation XGBoost (\texttt{xgboost\_complement.py})}
 \label{fig:xgb-zones}
 \end{figure}
 
