@@ -333,51 +333,43 @@ Le mode incrémental permet de traiter les \textbf{nouvelles déclarations au fi
 \begin{figure}[H]
 \centering
 \small
-\begin{tikzpicture}[node distance=0.7cm, scale=0.78, every node/.style={transform shape}]
+\begin{tikzpicture}[node distance=0.45cm, scale=0.68, every node/.style={transform shape}]
 
-\node[plio] (n-input) {RFF.formule\_P\_clean\\100\,000 déclarations, 50 colonnes};
+\node[plio] (n-input) {RFF.formule\_P\_clean --- 100\,000 d\'{e}clarations, 50 colonnes};
 
-\node[pllayer1, below=1.0cm of n-input] (n-rc)
+\node[pllayer1, below=0.65cm of n-input] (n-rc)
   {\textbf{RC\_CLEAN} --- strip \texttt{"RC/"}, espaces, tirets $\rightarrow$ MAJUSCULES};
 \node[pllayer1, below=of n-rc] (n-rs)
   {\textbf{RS\_CLEAN} --- suppression accents, ponctuation, suffixe \texttt{MAROC}};
 \node[pllayer1, below=of n-rs] (n-hyb)
-  {\textbf{Stratégie hybride} --- si \texttt{\_R} non NULL $\rightarrow$ \texttt{\_R}, sinon $\rightarrow$ \texttt{\_CLEAN}};
+  {\textbf{Strat\'{e}gie hybride} --- \texttt{\_R} non NULL $\rightarrow$ \texttt{\_R}, sinon $\rightarrow$ \texttt{\_CLEAN}};
 
-\node[pllayer2, below=1.0cm of n-hyb] (n-bloc)
-  {\textbf{Blocage --- 5 règles}\\
-   \texttt{block\_on(RC\_R)} \quad \texttt{block\_on(RC)} \\
-   \texttt{BAM + SUBSTR(RC\_R,1,6)} \quad \texttt{BAM + SUBSTR(RS\_R,1,8)} \\
-   \texttt{GUICHET\_BAM + SUBSTR(RS\_R,1,7)}};
+\node[pllayer2, below=0.65cm of n-hyb] (n-bloc)
+  {\textbf{Blocage --- 5 r\`{e}gles :} \texttt{RC\_R} \quad \texttt{RC} \quad \texttt{BAM+SUBSTR(RC\_R,1,6)} \quad \texttt{BAM+SUBSTR(RS\_R,1,8)} \quad \texttt{GUICHET+SUBSTR(RS\_R,1,7)}};
 \node[pllayer2, below=of n-bloc] (n-comp)
   {\textbf{Comparaisons} --- JaroWinkler(RC, RS, RS\_R) + ExactMatch(BAM, GUICHET)};
 \node[pllayer2, below=of n-comp] (n-em)
-  {\textbf{Entraînement EM} --- 2 sessions rotatives (anchor RC\_R, anchor RC)};
-\node[pllayer2, below=of n-em] (n-pred)
-  {\textbf{Prédiction} + \textbf{Veto RC} + \textbf{Sweep seuil} (optimal = 0.80)};
-\node[pllayer2, below=of n-pred] (n-clust)
+  {\textbf{EM} 2 sessions rotatives \quad \textbf{Veto RC} \quad \textbf{Seuil optimal = 0.80}};
+\node[pllayer2, below=of n-em] (n-clust)
   {\textbf{Clustering} --- composantes connexes};
 
-\node[pldecision, below=1.1cm of n-clust] (n-dec1)
+\node[pldecision, below=0.85cm of n-clust] (n-dec1)
   {\texttt{match\_prob} $\geq$ 0.80 ?};
 
-\node[placcept, right=3.2cm of n-dec1] (n-high)
+\node[placcept, right=3.0cm of n-dec1] (n-high)
   {HAUTE CONFIANCE\\SOURCE = SPLINK};
 
-\node[pllayer3, below=1.3cm of n-dec1] (n-feat)
-  {\textbf{Feature engineering} --- 13 identité + 10 comportementales + \texttt{splink\_prob}};
+\node[pllayer3, below=0.95cm of n-dec1] (n-feat)
+  {\textbf{Features} --- 13 identit\'{e} + 10 comportementales + \texttt{splink\_prob}};
 \node[pllayer3, below=of n-feat] (n-xgb)
   {\textbf{XGBClassifier} --- n\_estimators=300, max\_depth=5, lr=0.05};
-\node[pllayer3, below=of n-xgb] (n-split)
-  {\textbf{Train/test split par COMPANY} (anti-leakage)};
 
-\node[plreject, left=3.2cm of n-xgb] (n-reject) {NON-MATCH\\REJETÉ};
+\node[plreject, left=3.0cm of n-feat] (n-reject) {NON-MATCH\\REJET\'{E}};
 
-\node[pldecision, below=1.1cm of n-split] (n-dec2) {MATCH ?};
+\node[pldecision, below=0.85cm of n-xgb] (n-dec2) {MATCH ?};
 
-\node[plio, below=1.8cm of n-dec2] (n-output)
-  {RFF.entity\_clusters\\
-   ID\_FORMULE, CLUSTER\_ID, CANONICAL\_RC, CANONICAL\_NAME, SOURCE};
+\node[plio, below=1.2cm of n-dec2] (n-output)
+  {RFF.entity\_clusters --- ID\_FORMULE, CLUSTER\_ID, CANONICAL\_RC, SOURCE};
 
 \draw[plarr1] (n-input) -- (n-rc);
 \draw[plarr1] (n-rc)    -- (n-rs);
@@ -386,39 +378,37 @@ Le mode incrémental permet de traiter les \textbf{nouvelles déclarations au fi
 \draw[plarr2] (n-bloc)  -- (n-comp)
   node[midway, right, font=\scriptsize, l2violet] {$\sim$5G $\rightarrow$ $\sim$2M paires};
 \draw[plarr2] (n-comp)  -- (n-em);
-\draw[plarr2] (n-em)    -- (n-pred);
-\draw[plarr2] (n-pred)  -- (n-clust);
+\draw[plarr2] (n-em)    -- (n-clust);
 \draw[plarr2] (n-clust) -- (n-dec1);
 \draw[placc]  (n-dec1.east) -- (n-high.west) node[midway, above, font=\scriptsize] {$\geq$ 0.80};
 \draw[plarr3] (n-dec1.south) -- (n-feat.north)
   node[midway, right, font=\scriptsize] {0.50 $\le$ P $<$ 0.80};
-\draw[plrej]  (n-dec1.west) -- ++(-1.4,0) |- (n-reject.north)
+\draw[plrej]  (n-dec1.west) -- ++(-1.2,0) |- (n-reject.north)
   node[near start, above, font=\scriptsize] {$<$ 0.50};
 \draw[plarr3] (n-feat)  -- (n-xgb);
-\draw[plarr3] (n-xgb)   -- (n-split);
-\draw[plarr3] (n-split) -- (n-dec2);
-\draw[plrej]  (n-dec2.west) -- ++(-1.4,0) |- (n-reject.south)
+\draw[plarr3] (n-xgb)   -- (n-dec2);
+\draw[plrej]  (n-dec2.west) -- ++(-1.2,0) |- (n-reject.south)
   node[near start, below, font=\scriptsize] {NON-MATCH};
-\draw[placc]  (n-dec2.east) -- ++(1.5,0) |- ($(n-output.east)+(0,0.3)$)
+\draw[placc]  (n-dec2.east) -- ++(1.4,0) |- ($(n-output.east)+(0,0.3)$)
   node[near start, above, font=\scriptsize] {MATCH};
 \draw[placc]  (n-high.south) |- ($(n-output.east)+(0,0.6)$);
 
-\fill[l1blue] ($(n-rc.north west)+(-0.6,0.12)$) rectangle ($(n-hyb.south west)+(-0.22,-0.12)$);
+\fill[l1blue]   ($(n-rc.north west)+(-0.55,0.1)$)  rectangle ($(n-hyb.south west)+(-0.2,-0.1)$);
 \node[rotate=90, text=white, font=\bfseries\scriptsize] at
-  ($(n-rc.north west)!0.5!(n-hyb.south west)+(-0.41,0)$) {LAYER 1};
-\fill[l2violet] ($(n-bloc.north west)+(-0.6,0.12)$) rectangle ($(n-clust.south west)+(-0.22,-0.12)$);
+  ($(n-rc.north west)!0.5!(n-hyb.south west)+(-0.375,0)$) {L1};
+\fill[l2violet] ($(n-bloc.north west)+(-0.55,0.1)$) rectangle ($(n-clust.south west)+(-0.2,-0.1)$);
 \node[rotate=90, text=white, font=\bfseries\scriptsize] at
-  ($(n-bloc.north west)!0.5!(n-clust.south west)+(-0.41,0)$) {LAYER 2 --- SPLINK};
-\fill[l3green] ($(n-feat.north west)+(-0.6,0.12)$) rectangle ($(n-split.south west)+(-0.22,-0.12)$);
+  ($(n-bloc.north west)!0.5!(n-clust.south west)+(-0.375,0)$) {L2 SPLINK};
+\fill[l3green]  ($(n-feat.north west)+(-0.55,0.1)$) rectangle ($(n-xgb.south west)+(-0.2,-0.1)$);
 \node[rotate=90, text=white, font=\bfseries\scriptsize] at
-  ($(n-feat.north west)!0.5!(n-split.south west)+(-0.41,0)$) {LAYER 3};
+  ($(n-feat.north west)!0.5!(n-xgb.south west)+(-0.375,0)$) {L3};
 
 \end{tikzpicture}
-\caption{Architecture globale du pipeline d'Entity Resolution à 3 couches --- Office des Changes}
+\caption{Architecture globale du pipeline d'Entity Resolution \`{a} 3 couches --- Office des Changes}
 \label{fig:er-pipeline}
 \end{figure}
 
-\section{Pipeline Incrémental — Schéma de Flux}
+\subsection{Sch\'{e}ma de Flux}
 
 \tikzset{
   inchist/.style={rectangle, rounded corners=3pt, draw=blue!55!black, thick,
