@@ -78,22 +78,22 @@
 \end{figure}
 
 % Titre du rapport
+\rule{\linewidth}{0.2 mm} \\[0.2 cm]
+{\LARGE\bfseries \titre \par} \
 \rule{\linewidth}{0.2 mm} \\[0.4 cm]
-{\huge\bfseries \titre \par} \
-\rule{\linewidth}{0.2 mm} \\[1.0 cm]
 
 % Nom de l'étudiant
 {\scshape\LARGE \eleve \par} 
-\vspace{0.5cm}
+\vspace{0.3cm}
 
 % Parcours de l'étudiant
 {\scshape \mention \\ \filiere \\ \master \par} 
-\vspace{0.5cm}
+\vspace{0.3cm}
 
 % Dates
 {\large \dates \par} 
 
-\vspace{1cm}
+\vspace{0.5cm}
 % Représentants de l'étudiant
 \begin{minipage}{0.4\textwidth}
 	\begin{flushleft} 
@@ -107,7 +107,7 @@
 	\emph{\textbf{Tuteur Entreprise :}} \\
 	 \tuteurentreprise \\
 	\end{flushright}
-\end{minipage}\\[1cm]
+\end{minipage}\\[0.4cm]
 ~
     \begin{minipage}{0.4\textwidth}
     \begin{center}
@@ -115,12 +115,10 @@
         \tuteurjury
     \end{center}
 \end{minipage}
-\vspace{0.65cm}\\
+\vspace{0.3cm}\\
 \begin{center}
 {\Large\textbf{Année universitaire 2025 -- 2026}}
 \end{center}
-	.
-	
 
 \end{titlepage}
 \newpage
