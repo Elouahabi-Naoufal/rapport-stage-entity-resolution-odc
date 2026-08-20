@@ -1,0 +1,343 @@
+\chapter{Conception et Implémentation du Pipeline d'Entity Resolution}
+
+Ce chapitre décrit la conception et l'implémentation complète du pipeline en trois couches : nettoyage des données, Entity Resolution avec Splink, et classification ML avec XGBoost. Il présente également le mode de fonctionnement incrémental du système.
+
+\section{Couche 1 — Nettoyage des Données}
+
+Avant tout traitement d'Entity Resolution, une couche de nettoyage est appliquée sur les champs bruités. Cette étape est indispensable : des données mal normalisées réduisent l'efficacité des algorithmes de similarité textuelle et augmentent les faux négatifs.
+
+\subsection{Nettoyage du champ \texttt{RC}}
+
+Le RC est le champ le plus critique. Les transformations appliquées sont :
+
+\begin{table}[H]
+\centering
+\caption{Règles de nettoyage du champ \texttt{RC}}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{4cm}|p{4cm}|p{5cm}|}
+\hline
+\textbf{Corruption} & \textbf{Avant} & \textbf{Après nettoyage} \\
+\hline
+Préfixe \texttt{RC/} & \texttt{RC/040178} & \texttt{040178} \\
+\hline
+Espaces internes & \texttt{040 178} & \texttt{040178} \\
+\hline
+Tirets & \texttt{040-178} & \texttt{040178} \\
+\hline
+Majuscules/minuscules & \texttt{rc/040178} & \texttt{040178} \\
+\hline
+Espaces en début/fin & \texttt{\ 040178\ } & \texttt{040178} \\
+\hline
+Valeur NULL & NULL & NULL (conservé) \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent Le RC nettoyé est stocké dans une colonne \texttt{RC\_CLEAN} utilisée par le pipeline. La colonne originale \texttt{RC} est conservée intacte.
+
+\subsection{Nettoyage du champ \texttt{RAISON\_SOCIALE}}
+
+\begin{itemize}
+    \item Conversion en majuscules
+    \item Suppression des accents et caractères spéciaux (\texttt{É} $\rightarrow$ \texttt{E}, \texttt{Ç} $\rightarrow$ \texttt{C})
+    \item Suppression de la ponctuation (\texttt{S.A.R.L.} $\rightarrow$ \texttt{SARL})
+    \item Normalisation des espaces multiples
+    \item Suppression des suffixes redondants (\texttt{MAROC}, \texttt{MOROCCO}) en fin de chaîne
+\end{itemize}
+
+\subsection{Nettoyage du champ \texttt{DONNEUR\_ORDRE}}
+
+Les mêmes transformations que \texttt{RAISON\_SOCIALE} sont appliquées. Le \texttt{DONNEUR\_ORDRE} étant instable (50\,\% d'alias différents), il est utilisé comme signal secondaire uniquement.
+
+\subsection{Stratégie hybride \texttt{\_R} / dirty}
+
+Pour chaque champ, la logique de sélection est :
+
+\begin{enumerate}
+    \item Si la colonne \texttt{\_R} est non-NULL $\rightarrow$ utiliser la valeur \texttt{\_R} (vérifiée OdC)
+    \item Sinon $\rightarrow$ utiliser la valeur nettoyée du champ bruité
+\end{enumerate}
+
+Cette stratégie est essentielle pour les anciens enregistrements qui n'ont pas de colonnes \texttt{\_R} renseignées.
+
+\section{Couche 2 — Entity Resolution avec Splink}
+
+\subsection{Présentation de Splink}
+
+\textbf{Splink} est une bibliothèque Python open-source développée par le Ministère de la Justice britannique, utilisée en production pour relier des millions de dossiers judiciaires. Elle implémente le \textbf{modèle probabiliste de Fellegi-Sunter} (1969) avec l'algorithme \textbf{Expectation-Maximisation (EM)} pour apprendre les paramètres sans données labellisées.
+
+Pour chaque paire de déclarations $(A, B)$, Splink calcule un \textbf{poids de match} :
+$$\text{match\_weight} = \sum_{i} \log_2\left(\frac{m_i}{u_i}\right)$$
+
+où $m_i = P(\text{accord sur champ } i \mid \text{même opérateur})$ et $u_i = P(\text{accord par hasard} \mid \text{opérateurs différents})$.
+
+\begin{table}[H]
+\centering
+\caption{Exemple de calcul de poids de match Fellegi-Sunter}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{Champ} & \textbf{Accord ?} & \textbf{m} & \textbf{u} & \textbf{Poids} \\
+\hline
+RC exact & Oui & 0,92 & 0,001 & +9,8 \\
+\hline
+RAISON\_SOCIALE JW $\geq$ 0,92 & Oui & 0,85 & 0,05 & +4,1 \\
+\hline
+CODE\_BANQUE\_BAM & Oui & 0,95 & 0,08 & +3,6 \\
+\hline
+VILLE & Non & 0,05 & 0,40 & $-$3,1 \\
+\hline
+\textbf{Total} & & & & \textbf{+14,4 $\rightarrow$ MATCH} \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Étape 1 — Le Blocage}
+
+Le blocage réduit les $\sim$5 milliards de paires possibles à quelques millions de paires candidates. Les règles retenues après analyse de la cardinalité des champs sont :
+
+\begin{table}[H]
+\centering
+\caption{Règles de blocage retenues et leur justification}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|p{5cm}|p{5cm}|}
+\hline
+\textbf{Règle} & \textbf{Justification} & \textbf{Cible} \\
+\hline
+\texttt{block\_on('RC')} & RC dirty — haute cardinalité, 70\,\% propre & Records récents avec RC \\
+\hline
+\texttt{block\_on('RC\_R')} & RC canonique OdC — 0\,\% bruit & Records avec RC\_R renseigné \\
+\hline
+\texttt{block\_on('CODE\_BANQUE\_BAM', 'substr(RS\_R, 1, 8)')} & Même banque + début nom canonique & Records récents \\
+\hline
+\texttt{block\_on('CODE\_BANQUE\_BAM', 'substr(RS, 1, 8)')} & Fallback anciens records sans \_R & Anciens records \\
+\hline
+\texttt{block\_on('CENTRE\_R', 'CODE\_OPERATION\_R')} & 108 $\times$ 1\,452 combinaisons — très sélectif & Records avec centre vérifié \\
+\hline
+\texttt{block\_on('CODE\_GUICHET\_BAM', 'substr(RS\_R, 1, 6)')} & Même agence + début nom & Records récents \\
+\hline
+\texttt{block\_on('VILLE', 'substr(RS, 1, 6)')} & Fallback géographique + nom & Anciens records \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Règles supprimées :} \texttt{CODE\_BANQUE\_BAM + ANNEE + SENS} — combinaison de 3 champs à très faible cardinalité (35 $\times$ 5 $\times$ 2 = 350 combinaisons) générant des blocs de $\sim$1\,500 lignes et un méga-cluster de 32\,000 enregistrements.
+
+\subsection{Étape 2 — Les Comparaisons}
+
+Pour chaque paire candidate, Splink calcule des scores de similarité champ par champ :
+
+\begin{itemize}
+    \item \textbf{RC} : JaroWinkler avec seuils 0,95 et 0,80 — gère les variantes de format (\texttt{RC/040178} $\leftrightarrow$ \texttt{040178} : score 0,94)
+    \item \textbf{RAISON\_SOCIALE\_R} : JaroWinkler avec seuils 0,95 / 0,88 / 0,80 — seuils stricts car OdC-vérifié
+    \item \textbf{RAISON\_SOCIALE} : JaroWinkler avec seuils 0,92 / 0,80 / 0,70 — seuils permissifs pour absorber le bruit
+    \item \textbf{DONNEUR\_ORDRE} : JaroWinkler avec seuils 0,90 / 0,75 — signal secondaire (50\,\% d'alias)
+    \item \textbf{CODE\_BANQUE\_BAM}, \textbf{CODE\_GUICHET\_BAM}, \textbf{CENTRE\_R}, \textbf{SENS}, \textbf{VILLE} : ExactMatch
+\end{itemize}
+
+\subsection{Étape 3 — Entraînement EM sans labels}
+
+L'algorithme EM apprend les paramètres $m$ et $u$ sans données labellisées. Trois sessions d'entraînement sont nécessaires pour couvrir tous les champs (un champ utilisé dans le blocage d'une session ne peut pas être entraîné dans cette même session) :
+
+\begin{table}[H]
+\centering
+\caption{Sessions d'entraînement EM — rotation des champs}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|c|l|l|}
+\hline
+\textbf{Session} & \textbf{Blocking sur} & \textbf{Champs entraînés} \\
+\hline
+1 & \texttt{RC\_R} & RC, RAISON\_SOCIALE, DONNEUR\_ORDRE, BAM, VILLE \\
+\hline
+2 & \texttt{CODE\_BANQUE\_BAM + substr(RS, 1, 5)} & RAISON\_SOCIALE\_R, CENTRE\_R \\
+\hline
+3 & \texttt{CENTRE\_R + SENS} & CODE\_BANQUE\_BAM, CODE\_GUICHET\_BAM \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Étape 4 — Prédiction et filtre de veto RC}
+
+Après entraînement, Splink génère des scores de match pour toutes les paires candidates. Le filtre de veto RC est appliqué en post-traitement :
+
+\begin{center}
+\textit{Si $RC_i \neq \emptyset$ et $RC_j \neq \emptyset$ et $RC_i \neq RC_j$ $\Rightarrow$ supprimer la paire, quelle que soit la probabilité de match.}
+\end{center}
+
+Ce filtre élimine les fusions impossibles entre entreprises ayant des RC différents mais des noms similaires (ex : \texttt{MARTIN SA} et \texttt{MARTIN SARL} avec des RC distincts).
+
+\subsection{Étape 5 — Clustering et sweep de seuil}
+
+Les paires validées sont regroupées en clusters par transitivité (composantes connexes du graphe de matches). Le seuil optimal est déterminé par un sweep systématique :
+
+\begin{table}[H]
+\centering
+\caption{Résultats du sweep de seuil — Splink seul}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|c|c|c|c|c|c|}
+\hline
+\textbf{Seuil} & \textbf{Clusters} & \textbf{Précision} & \textbf{Recall} & \textbf{F1} & \textbf{Méga-clusters} \\
+\hline
+0,70 & 672 & 67,2\,\% & 100\,\% & 73,5\,\% & 4 \\
+\hline
+0,80 & 700 & 70,0\,\% & 100\,\% & 76,1\,\% & 2 \\
+\hline
+0,90 & 722 & 72,2\,\% & 100\,\% & 78,2\,\% & 2 \\
+\hline
+\textbf{0,95} & \textbf{727} & \textbf{72,7\,\%} & \textbf{100\,\%} & \textbf{78,6\,\%} & \textbf{2} \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent Le seuil optimal retenu est \textbf{0,95}. Le recall de 100\,\% signifie que Splink ne rate aucun vrai match. La précision de 72,7\,\% indique que 27,3\,\% des clusters contiennent encore 2+ entreprises différentes — c'est le problème que XGBoost résout.
+
+\section{Couche 3 — Classification ML avec XGBoost}
+
+\subsection{Pourquoi XGBoost après Splink ?}
+
+Splink est excellent pour la similarité textuelle mais ne voit pas les \textbf{patterns comportementaux} des opérateurs. Les cas difficiles sont :
+\begin{itemize}
+    \item RC null des deux côtés + noms courts génériques (\texttt{MARTIN}, \texttt{PARIS})
+    \item Même préfixe de nom mais entreprises différentes (\texttt{MARTIN SA} vs \texttt{MARTIN SARL})
+    \item Entreprises du même secteur, même banque, même ville — mais entités distinctes
+\end{itemize}
+
+XGBoost exploite des \textbf{features comportementales} agrégées par opérateur pour discriminer ces cas.
+
+\subsection{Construction des features}
+
+Pour chaque paire de déclarations $(A, B)$ produite par Splink, un vecteur de features est calculé :
+
+\begin{table}[H]
+\centering
+\caption{Features du classificateur XGBoost}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{4cm}|p{9cm}|}
+\hline
+\textbf{Feature} & \textbf{Description} \\
+\hline
+\texttt{splink\_score} & Probabilité de match Splink — feature la plus importante \\
+\hline
+\texttt{jw\_rc} & JaroWinkler(\texttt{RC\_l}, \texttt{RC\_r}) \\
+\hline
+\texttt{jw\_rs} & JaroWinkler(\texttt{RAISON\_SOCIALE\_norm\_l}, \texttt{RAISON\_SOCIALE\_norm\_r}) \\
+\hline
+\texttt{jw\_do} & JaroWinkler(\texttt{DONNEUR\_ORDRE\_l}, \texttt{DONNEUR\_ORDRE\_r}) \\
+\hline
+\texttt{exact\_bam} & \texttt{CODE\_BANQUE\_BAM\_l} == \texttt{CODE\_BANQUE\_BAM\_r} \\
+\hline
+\texttt{exact\_centre} & \texttt{CENTRE\_R\_l} == \texttt{CENTRE\_R\_r} \\
+\hline
+\texttt{montant\_ratio} & $\frac{\text{mean\_MONTANT\_DHS}_A}{\text{mean\_MONTANT\_DHS}_B}$ — ratio des montants moyens \\
+\hline
+\texttt{same\_top\_country} & Même pays partenaire le plus fréquent \\
+\hline
+\texttt{same\_top\_operation} & Même code opération le plus fréquent \\
+\hline
+\texttt{ratio\_import\_export} & Ratio SENS=1 / SENS=2 par opérateur \\
+\hline
+\texttt{rc\_null\_both} & Les deux RC sont NULL (cas difficile) \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Entraînement et évaluation}
+
+\begin{itemize}
+    \item \textbf{Labels} : issus de \texttt{ground\_truth.csv} — même \texttt{company\_id} $\rightarrow$ MATCH (1), sinon NON-MATCH (0)
+    \item \textbf{Modèle} : \texttt{XGBClassifier(n\_estimators=300, max\_depth=6, learning\_rate=0.05)}
+    \item \textbf{Validation} : train/test split 80/20, stratifié sur le label
+    \item \textbf{Gestion du déséquilibre} : les non-matches sont bien plus nombreux que les matches — paramètre \texttt{scale\_pos\_weight} ajusté
+\end{itemize}
+
+\begin{table}[H]
+\centering
+\caption{Comparaison des approches — résultats attendus}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Approche} & \textbf{Précision} & \textbf{Recall} & \textbf{F1} \\
+\hline
+Splink seul (baseline) & 40,8\,\% & 99,9\,\% & 46,1\,\% \\
+\hline
+Splink v2 (blocage corrigé + veto RC) & 72,7\,\% & 100\,\% & 78,6\,\% \\
+\hline
+\textbf{Splink v2 + XGBoost} & \textbf{85--90\,\%} & \textbf{$\sim$95\,\%} & \textbf{$\sim$89\,\%} \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Pipeline Incrémental}
+
+\subsection{Principe}
+
+Le mode incrémental permet de traiter les \textbf{nouvelles déclarations au fil de l'eau} sans retraiter l'historique complet. C'est essentiel en production où l'OdC reçoit de nouvelles déclarations de manière décadaire.
+
+\subsection{Architecture incrémentale}
+
+\begin{enumerate}
+    \item \textbf{Détection des nouveaux enregistrements} : identification des déclarations dont \texttt{DATE\_CREATE} est postérieure au dernier traitement, via la colonne \texttt{ID\_FORMULE} (auto-incrémentée).
+    \item \textbf{Nettoyage incrémental} : application de la couche de nettoyage uniquement sur les nouveaux enregistrements.
+    \item \textbf{Blocage hybride} : les nouveaux enregistrements sont comparés (a) entre eux et (b) contre les enregistrements historiques déjà clusterisés, via les mêmes règles de blocage.
+    \item \textbf{Prédiction Splink} : génération des scores de match pour les nouvelles paires candidates uniquement.
+    \item \textbf{Mise à jour des clusters} : les nouveaux enregistrements sont rattachés aux clusters existants si le score dépasse le seuil, ou créent de nouveaux clusters.
+    \item \textbf{Classification XGBoost} : les cas ambigus (score Splink entre 0,5 et 0,95) sont soumis au classificateur XGBoost.
+    \item \textbf{Persistance} : les clusters mis à jour sont sauvegardés dans la table \texttt{RFF.entity\_clusters}.
+\end{enumerate}
+
+\subsection{Table de persistance des clusters}
+
+\begin{table}[H]
+\centering
+\caption{Structure de la table \texttt{RFF.entity\_clusters}}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|p{7cm}|}
+\hline
+\textbf{Colonne} & \textbf{Type} & \textbf{Description} \\
+\hline
+\texttt{ID\_FORMULE} & INT & FK vers \texttt{formule\_T\_clean} \\
+\hline
+\texttt{CLUSTER\_ID} & INT & Identifiant du cluster d'opérateur \\
+\hline
+\texttt{CANONICAL\_RC} & NVARCHAR(20) & RC canonique du cluster \\
+\hline
+\texttt{CANONICAL\_NAME} & NVARCHAR(255) & Nom canonique du cluster \\
+\hline
+\texttt{MATCH\_SCORE} & FLOAT & Score Splink ayant conduit au rattachement \\
+\hline
+\texttt{DATE\_CLUSTER} & DATETIME & Date de création/mise à jour du cluster \\
+\hline
+\texttt{SOURCE} & NVARCHAR(10) & \texttt{SPLINK} ou \texttt{XGBOOST} \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Architecture Globale du Pipeline}
+
+\begin{figure}[H]
+\centering
+\begin{minipage}{0.9\textwidth}
+\textbf{Données d'entrée :} \texttt{RFF.formule\_T\_clean} (nouvelles déclarations)
+\begin{enumerate}
+    \item \textbf{Couche 1 — Nettoyage} : normalisation RC, RAISON\_SOCIALE, DONNEUR\_ORDRE $\rightarrow$ colonnes \texttt{\_CLEAN}
+    \item \textbf{Stratégie hybride} : sélection \texttt{\_R} si disponible, sinon \texttt{\_CLEAN}
+    \item \textbf{Couche 2 — Splink} :
+    \begin{itemize}
+        \item Blocage (7 règles hybrides \_R / dirty)
+        \item Comparaisons JaroWinkler + ExactMatch
+        \item Entraînement EM (3 sessions rotatives)
+        \item Prédiction + filtre veto RC
+        \item Sweep de seuil $\rightarrow$ seuil optimal 0,95
+        \item Clustering par composantes connexes
+    \end{itemize}
+    \item \textbf{Couche 3 — XGBoost} : feature engineering sur paires ambiguës $\rightarrow$ classification MATCH / NON-MATCH
+    \item \textbf{Mode incrémental} : rattachement aux clusters existants ou création de nouveaux clusters
+    \item \textbf{Persistance} : mise à jour de \texttt{RFF.entity\_clusters}
+\end{enumerate}
+\end{minipage}
+\caption{Architecture globale du pipeline d'Entity Resolution}
+\end{figure}
+
+\section*{Conclusion}
+
+Ce chapitre a décrit l'architecture complète du pipeline en trois couches. La couche de nettoyage prépare les données, Splink résout la majorité des cas par similarité probabiliste, et XGBoost traite les cas difficiles par apprentissage supervisé sur les signaux comportementaux. Le mode incrémental garantit l'applicabilité en production. Le chapitre suivant présente les résultats quantitatifs et l'évaluation du système.

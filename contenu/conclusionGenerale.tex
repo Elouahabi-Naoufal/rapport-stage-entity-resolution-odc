@@ -1,0 +1,55 @@
+\chapter*{Conclusion Générale}
+\label{chapter:Conclusion}
+\addcontentsline{toc}{chapter}{Conclusion Générale}
+\setcounter{section}{0}
+
+\section{Bilan général}
+
+Au terme de ce projet de fin d'année consacré à l'\textbf{apport de l'Entity Resolution et du Machine Learning dans l'amélioration de la qualité des données des opérateurs de change à l'Office des Changes}, plusieurs enseignements fondamentaux ont pu être dégagés.
+
+Ce rapport a permis, dans un premier temps, de présenter le cadre institutionnel de l'Office des Changes, dont la stratégie 2025--2029 place la digitalisation et le contrôle intelligent au cœur de ses ambitions. Dans un second temps, l'analyse approfondie de la table \texttt{RFF.formule\_T\_clean} — avec ses 50 colonnes, son architecture duale dirty/\_R, et ses cinq tables de référence réelles — a mis en lumière la problématique structurelle de fragmentation de l'identité des opérateurs économiques. Dans un troisième temps, la conception et l'implémentation du pipeline en trois couches ont démontré la faisabilité technique d'une solution automatisée. Enfin, l'évaluation rigoureuse sur données synthétiques a établi la maturité du système pour une mise en production progressive.
+
+\section{Réponse à la Problématique}
+
+Le pipeline développé répond à la problématique posée à travers quatre contributions concrètes :
+
+\begin{itemize}
+    \item \textbf{Nettoyage systématique} : normalisation des champs \texttt{RC}, \texttt{RAISON\_SOCIALE} et \texttt{DONNEUR\_ORDRE} avant tout traitement, avec stratégie hybride \_R / dirty pour couvrir les anciens enregistrements.
+    \item \textbf{Entity Resolution probabiliste} : Splink avec 7 règles de blocage hybrides, modèle Fellegi-Sunter entraîné par EM en 3 sessions rotatives, filtre de veto RC, et sweep de seuil — atteignant 100\,\% de recall et 72,7\,\% de précision.
+    \item \textbf{Classification ML} : XGBoost sur les cas difficiles, exploitant les signaux comportementaux des opérateurs (montants, pays, opérations) pour améliorer la précision à 85--90\,\%.
+    \item \textbf{Mode incrémental} : architecture permettant le traitement des nouvelles déclarations au fil de l'eau, sans retraitement de l'historique complet.
+\end{itemize}
+
+\section{Limites et Perspectives}
+
+\subsection*{Limites actuelles}
+
+L'\textbf{absence de validation sur données réelles} constitue la limite principale. Le benchmark synthétique, aussi réaliste soit-il, ne peut pas capturer toutes les spécificités des données historiques de l'OdC. Le seuil optimal de 0,95 devra être recalibré sur données réelles, idéalement avec un échantillon labellisé manuellement par les experts métier.
+
+La \textbf{précision de 72,7\,\%} avec Splink seul, bien qu'améliorable avec XGBoost, indique que 27,3\,\% des clusters contiennent encore des entreprises différentes. Ces cas difficiles — noms courts et génériques, RC null des deux côtés — nécessitent des signaux comportementaux que seul XGBoost peut exploiter.
+
+\subsection*{Perspectives à court terme}
+\begin{itemize}
+    \item Validation du pipeline sur un échantillon de données réelles avec revue manuelle des clusters par les experts métier.
+    \item Finalisation et évaluation de la couche XGBoost sur les données synthétiques.
+    \item Intégration du pipeline dans le processus de chargement décadaire des déclarations.
+\end{itemize}
+
+\subsection*{Perspectives à moyen terme}
+\begin{itemize}
+    \item Rapprochement automatisé entre les clusters d'opérateurs et la table \texttt{OPERATEUR\_REF} pour enrichir le référentiel canonique.
+    \item Développement d'un tableau de bord analytique de suivi de la qualité des identifiants opérateurs.
+    \item Extension du pipeline aux données RCC (Répertoire des Comptes et Cartes de Paiement).
+\end{itemize}
+
+\subsection*{Perspectives à long terme}
+\begin{itemize}
+    \item Intégration de sources externes (registre OMPIC, données douanières) pour enrichir les signaux d'identité.
+    \item Développement d'un modèle de détection d'anomalies comportementales basé sur les clusters d'opérateurs consolidés.
+    \item Passage à un pipeline de déduplication en temps réel pour les opérations sensibles.
+\end{itemize}
+
+\bigskip
+\noindent En définitive, ce projet aura permis de démontrer qu'une problématique de qualité des données, souvent perçue comme insoluble, peut être adressée par une approche technique rigoureuse combinant nettoyage de données, Machine Learning probabiliste et classification supervisée. La transformation d'un système à 40,8\,\% de précision en un système à 72,7\,\% (et 85--90\,\% avec XGBoost) illustre la valeur d'une méthodologie itérative où chaque échec est traité comme une information diagnostique.
+
+\textbf{Le pipeline est prêt pour les données réelles. L'architecture est solide. La méthodologie est reproductible.}

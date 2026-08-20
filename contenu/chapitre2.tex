@@ -1,0 +1,339 @@
+\chapter{Problématique, État de l'Art et Définition de l'Entity Resolution}
+
+Ce chapitre analyse la structure de la base de données \texttt{RFF.formule\_T\_clean}, établit le diagnostic précis de la problématique de qualité des données, puis présente une définition complète et rigoureuse de l'Entity Resolution — ses fondements théoriques, sa taxonomie, ses défis algorithmiques et son application dans le contexte de l'Office des Changes.
+
+\section{Architecture de la Base de Données}
+
+\subsection{La table principale : \texttt{RFF.formule\_T\_clean}}
+
+La table \texttt{RFF.formule\_T\_clean} est la table centrale du projet. Elle contient \textbf{50 colonnes} décrivant chaque déclaration bancaire reçue par l'Office des Changes. Son architecture repose sur un principe dual : pour chaque champ métier sensible, deux colonnes coexistent — la valeur \textbf{déclarée par la banque} (bruitée, sujette aux erreurs) et la valeur \textbf{corrigée par l'OdC} suffixée \texttt{\_R} (vérifiée, canonique).
+
+\begin{table}[H]
+\centering
+\caption{Colonnes clés de \texttt{RFF.formule\_T\_clean} par groupe fonctionnel}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{2.8cm}|p{4.5cm}|p{4.5cm}|p{2cm}|}
+\hline
+\textbf{Groupe} & \textbf{Colonne déclarée (bruitée)} & \textbf{Colonne corrigée OdC (\_R)} & \textbf{Nullable} \\
+\hline
+Identité opérateur & \texttt{RC}, \texttt{RAISON\_SOCIALE}, \texttt{DONNEUR\_ORDRE} & \texttt{RC\_R}, \texttt{RAISON\_SOCIALE\_R}, \texttt{DONNEUR\_ORDRE\_R} & Oui \\
+\hline
+Banque & \texttt{CODE\_BANQUE} & \texttt{CODE\_BANQUE\_BAM} (toujours correct) & Oui \\
+\hline
+Guichet & \texttt{CODE\_GUICHET} & \texttt{CODE\_GUICHET\_BAM} (toujours correct) & Oui \\
+\hline
+Centre OdC & \texttt{CENTRE} & \texttt{CENTRE\_R} (98\,\% correct) & Oui \\
+\hline
+Opération & \texttt{CODE\_OPERATION} & \texttt{CODE\_OPERATION\_R} & Oui \\
+\hline
+Montants & \texttt{MONTANT\_DHS}, \texttt{MONTANT\_DEVISE}, \texttt{COURS} & \texttt{MONTANT\_DHS\_R}, \texttt{MONTANT\_DHS\_CALC} & Oui \\
+\hline
+Pays & \texttt{CODE\_PAYS}, \texttt{PAYS\_PARTENAIRE} & \texttt{CODE\_PAYS\_R}, \texttt{PAYS\_PARTENAIRE\_R} & Oui \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Règle fondamentale :} tout champ suffixé \texttt{\_R} = valeur \textbf{vérifiée et corrigée par l'OdC}. La version sans \texttt{\_R} = valeur \textbf{déclarée par la banque}, pouvant contenir des erreurs. La seule colonne NOT NULL est \texttt{ID\_FORMULE} (clé primaire interne).
+
+\noindent\textbf{Cas particulier :} les anciens enregistrements (antérieurs à la mise en place de la normalisation OdC) ont les colonnes \texttt{\_R} à NULL. Les règles de traitement doivent donc être hybrides : utiliser \texttt{\_R} quand disponible, et se rabattre sur le champ bruité sinon.
+
+\subsection{Les tables de référence}
+
+Le projet s'appuie sur cinq tables de référence réelles, extraites du fichier \texttt{Operation\_Bancaire.xlsx} fourni par l'encadrante :
+
+\begin{table}[H]
+\centering
+\caption{Tables de référence du projet}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|p{9cm}|}
+\hline
+\textbf{Table} & \textbf{Lignes} & \textbf{Colonnes clés} \\
+\hline
+\texttt{RFF.Banque} & 48 & \texttt{ID\_BANQUE}, \texttt{LIBELLEBANQUE}, \texttt{CODE\_BAM}, \texttt{EN\_ACTIVITE} \\
+\hline
+\texttt{RFF.Guichet} & 7\,776 & \texttt{ID\_GUICHET}, \texttt{CODEGUICHET}, \texttt{CODEBANQUE}, \texttt{CODE\_BAM}, \texttt{F\_FERME} \\
+\hline
+\texttt{RFF.Centre} & 108 & \texttt{NEW\_CENTRE}, \texttt{LIBELLECENTRE}, \texttt{ANC\_CENTRE}, \texttt{CODEREGION} \\
+\hline
+\texttt{RFF.Region} & 18 & \texttt{CODE\_REGION}, \texttt{LIBELLE\_REGION} \\
+\hline
+\texttt{RFF.Operation} & 1\,452 & \texttt{RTC\_ID}, \texttt{RTC\_LIB}, \texttt{Sens\_Opération\_ID}, \texttt{Catégorie\_ID} \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent La chaîne relationnelle est : \texttt{Region} $\rightarrow$ \texttt{Centre} $\rightarrow$ \texttt{Guichet} $\rightarrow$ \texttt{Banque}. La table \texttt{Operation} est une table de référence standalone.
+
+\subsection{Le référentiel canonique : \texttt{OPERATEUR\_REF}}
+
+La table \texttt{OC\_REFERENTIEL.OPERATEUR\_REF} constitue la \textbf{vérité terrain officielle} des opérateurs maintenue manuellement par l'OdC. Elle contient les colonnes canoniques : \texttt{RC}, \texttt{RAISON\_SOCIAL}, \texttt{FJ} (forme juridique), \texttt{CAPITAL}, \texttt{ID\_FISCALE}, \texttt{CODESECTEUR}, \texttt{DCREAT}, \texttt{DRAD}. La jointure \texttt{formule\_T\_clean.RC\_R} $\rightarrow$ \texttt{OPERATEUR\_REF.RC} donne l'identité canonique d'un opérateur. C'est précisément cette jointure qui échoue quand le RC est mal formaté ou absent.
+
+\section{La Problématique d'Identité des Opérateurs}
+
+\subsection{Nature et fréquence des incohérences}
+
+L'analyse des données (100\,000 déclarations synthétiques, 1\,000 entreprises) révèle les patterns de corruption suivants, représentatifs des données réelles :
+
+\begin{table}[H]
+\centering
+\caption{Patterns de corruption observés sur les données}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{3cm}|p{5cm}|p{4cm}|c|}
+\hline
+\textbf{Champ} & \textbf{Type de corruption} & \textbf{Exemple} & \textbf{Taux} \\
+\hline
+\multirow{5}{*}{\texttt{RC}} & Valeur NULL & — & 8,0\,\% \\
+\cline{2-4}
+ & Préfixe \texttt{RC/} ajouté & \texttt{RC/040178} & 5,0\,\% \\
+\cline{2-4}
+ & Zéro en tête manquant & \texttt{04017} au lieu de \texttt{040178} & 8,0\,\% \\
+\cline{2-4}
+ & Espace ou tiret inséré & \texttt{040 178} & 4,0\,\% \\
+\cline{2-4}
+ & Faute de frappe & \texttt{040179} & 3,0\,\% \\
+\hline
+\multirow{4}{*}{\texttt{RAISON\_SOCIALE}} & Troncature & \texttt{MARTIN SA C} & $\sim$15\,\% \\
+\cline{2-4}
+ & Variante forme juridique & \texttt{SARL} $\rightarrow$ \texttt{STE}, \texttt{CIE}, \texttt{GIE} & $\sim$8\,\% \\
+\cline{2-4}
+ & Suppression accents & \texttt{SOCIÉTÉ} $\rightarrow$ \texttt{SOCIETE} & $\sim$6\,\% \\
+\cline{2-4}
+ & Suffixe MAROC ajouté & \texttt{ATLAS SA} $\rightarrow$ \texttt{ATLAS SA MAROC} & $\sim$5\,\% \\
+\hline
+\texttt{DONNEUR\_ORDRE} & Alias court (premier mot) & \texttt{ATLAS IMPORT SA} $\rightarrow$ \texttt{ATLAS} & $\sim$50\,\% \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Impact opérationnel}
+
+Ces incohérences ont des conséquences directes sur les missions de l'Office des Changes :
+
+\begin{itemize}
+    \item \textbf{Production statistique faussée} : un opérateur fragmenté en 20 identités apparaît comme 20 petits opérateurs au lieu d'un opérateur significatif. La balance des paiements est directement affectée.
+    \item \textbf{Contrôle réglementaire compromis} : la vérification de la conformité des opérations d'un opérateur donné aux autorisations accordées devient impossible si ses déclarations sont dispersées sous des identités multiples.
+    \item \textbf{Jointure avec \texttt{OPERATEUR\_REF} défaillante} : un RC mal formaté (\texttt{RC/040178} au lieu de \texttt{040178}) ne trouve pas de correspondance dans le référentiel, laissant la déclaration sans contexte opérateur.
+    \item \textbf{Suivi temporel impossible} : une entreprise qui change de forme juridique (\texttt{SARL} $\rightarrow$ \texttt{SA}) ou dont le nom évolue ne peut pas être suivie dans le temps sans résolution d'entités.
+\end{itemize}
+
+\section{L'Entity Resolution — Définition Complète et Fondements Théoriques}
+
+\subsection{Définition et terminologie}
+
+L'\textbf{Entity Resolution} (ER) — également désignée sous les termes \textit{Record Linkage}, \textit{Data Deduplication}, \textit{Entity Matching} ou \textit{Reference Reconciliation} selon les communautés — est le processus informatique qui consiste à \textbf{identifier et regrouper les enregistrements d'une ou plusieurs bases de données qui font référence à la même entité du monde réel}, malgré des représentations différentes, incomplètes ou erronées.
+
+Le problème a été formalisé pour la première fois par \textbf{Fellegi et Sunter} en 1969 dans leur article fondateur \textit{``A Theory for Record Linkage''}, qui pose les bases mathématiques du modèle probabiliste encore utilisé aujourd'hui. Depuis, l'Entity Resolution est devenue un domaine de recherche actif à l'intersection de la gestion des bases de données, du Machine Learning et de la linguistique computationnelle.
+
+\subsection{Taxonomie — les trois variantes du problème}
+
+Selon la configuration des données, on distingue trois variantes du problème :
+
+\begin{table}[H]
+\centering
+\caption{Taxonomie des problèmes d'Entity Resolution}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|p{3.5cm}|p{5cm}|p{5cm}|}
+\hline
+\textbf{Variante} & \textbf{Définition} & \textbf{Application dans ce projet} \\
+\hline
+\textbf{Déduplication} (\textit{Deduplication}) & Identifier les doublons au sein d'une \textbf{seule} base de données & \checkmark\ Cas principal : une même entreprise apparaît plusieurs fois dans \texttt{formule\_T\_clean} \\
+\hline
+\textbf{Liaison d'enregistrements} (\textit{Record Linkage}) & Relier des enregistrements entre \textbf{deux} bases de données distinctes & Secondaire : relier \texttt{formule\_T\_clean} à \texttt{OPERATEUR\_REF} \\
+\hline
+\textbf{Résolution de références} (\textit{Reference Resolution}) & Résoudre les références à des entités dans des textes non structurés & Non applicable ici \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Formulation formelle du problème}
+
+Soit $\mathcal{D} = \{d_1, d_2, \ldots, d_n\}$ l'ensemble des déclarations de la table \texttt{formule\_T\_clean}. Chaque déclaration $d_i$ est un vecteur de champs $(RC_i, RS_i, DO_i, BAM_i, \ldots)$.
+
+L'Entity Resolution consiste à construire une \textbf{partition} $\mathcal{C} = \{C_1, C_2, \ldots, C_k\}$ de $\mathcal{D}$ telle que :
+\begin{itemize}
+    \item Toutes les déclarations d'un même cluster $C_j$ appartiennent au même opérateur réel
+    \item Deux déclarations de clusters différents appartiennent à des opérateurs différents
+\end{itemize}
+
+Au niveau des paires, c'est un \textbf{problème de classification binaire} :
+$$f(d_i, d_j) = \begin{cases} 1 & \text{si } d_i \text{ et } d_j \text{ appartiennent au même opérateur (MATCH)} \\ 0 & \text{sinon (NON-MATCH)} \end{cases}$$
+
+\subsection{Le défi de la complexité combinatoire}
+
+Avec $n = 100\,000$ déclarations, le nombre de paires possibles est :
+$$\binom{n}{2} = \frac{n(n-1)}{2} = \frac{100\,000 \times 99\,999}{2} \approx 5 \text{ milliards de paires}$$
+
+Comparer 5 milliards de paires est computationnellement impossible en temps raisonnable. C'est le \textbf{problème de passage à l'échelle} fondamental de l'Entity Resolution, résolu par la technique du \textbf{blocage} (voir Section~\ref{sec:blocking}).
+
+\subsection{Les trois étapes canoniques de l'Entity Resolution}
+\label{sec:three_steps}
+
+Tout pipeline d'Entity Resolution suit trois étapes successives :
+
+\begin{enumerate}
+    \item \textbf{Blocage (\textit{Blocking})} : réduire l'espace de comparaison en ne retenant que les paires \textit{candidates} — celles qui ont une probabilité non négligeable d'être des matches. L'objectif est de couvrir $\geq$99\,\% des vrais matches tout en éliminant $\geq$99,9\,\% des paires impossibles.
+
+    \item \textbf{Comparaison (\textit{Comparison})} : pour chaque paire candidate, calculer un vecteur de similarité champ par champ. Les métriques utilisées dépendent de la nature des champs : similarité de chaînes (JaroWinkler, Levenshtein) pour les noms, correspondance exacte pour les codes, distance numérique pour les montants.
+
+    \item \textbf{Classification (\textit{Classification})} : décider si chaque paire est un MATCH ou un NON-MATCH, puis regrouper les enregistrements liés en clusters par transitivité.
+\end{enumerate}
+
+\subsection{Pourquoi l'Entity Resolution est difficile}
+
+L'Entity Resolution est un problème difficile pour plusieurs raisons fondamentales :
+
+\begin{itemize}
+    \item \textbf{Absence de clé universelle} : dans un monde idéal, chaque entité aurait un identifiant unique et stable. En pratique, le RC peut être absent, mal formaté ou erroné.
+    \item \textbf{Variabilité des représentations} : le même nom peut s'écrire de dizaines de façons différentes selon l'agent de saisie, la banque ou l'époque.
+    \item \textbf{Ambiguïté} : deux entités différentes peuvent avoir des représentations quasi-identiques (\texttt{MARTIN SA} et \texttt{MARTIN SARL} peuvent être deux entreprises distinctes).
+    \item \textbf{Données manquantes} : 8\,\% des RC sont NULL, rendant impossible toute comparaison directe sur ce champ.
+    \item \textbf{Évolution temporelle} : une entreprise peut changer de nom, de forme juridique ou de banque au cours du temps, créant des représentations légitimement différentes pour la même entité.
+    \item \textbf{Passage à l'échelle} : le nombre de paires croît quadratiquement avec le nombre d'enregistrements.
+\end{itemize}
+
+\subsection{Le modèle probabiliste de Fellegi-Sunter}
+
+Le modèle de \textbf{Fellegi-Sunter} (1969) est le fondement théorique de Splink. Il modélise le problème de la façon suivante :
+
+Soit $\Gamma$ l'espace de comparaison de toutes les paires $(d_i, d_j)$. Cet espace est partitionné en deux sous-ensembles :
+\begin{itemize}
+    \item $M$ : l'ensemble des paires MATCH (même entité réelle)
+    \item $U$ : l'ensemble des paires NON-MATCH (entités différentes)
+\end{itemize}
+
+Pour chaque champ $k$, on définit :
+\begin{itemize}
+    \item $m_k = P(\text{accord sur champ } k \mid \text{paire} \in M)$ — probabilité d'accord sachant que c'est un match
+    \item $u_k = P(\text{accord sur champ } k \mid \text{paire} \in U)$ — probabilité d'accord par hasard
+\end{itemize}
+
+Le \textbf{ratio de vraisemblance} (likelihood ratio) pour une paire est :
+$$\Lambda = \prod_{k} \frac{P(\gamma_k \mid M)}{P(\gamma_k \mid U)}$$
+
+En prenant le logarithme en base 2, on obtient le \textbf{poids de match} :
+$$W = \sum_{k} \log_2\left(\frac{m_k}{u_k}\right)$$
+
+Plus $W$ est élevé, plus la paire est probablement un match. Un seuil $\theta$ est fixé : si $W \geq \theta$, la paire est classée MATCH.
+
+\subsection{L'algorithme Expectation-Maximisation (EM)}
+
+Les paramètres $m_k$ et $u_k$ sont inconnus et doivent être estimés. L'algorithme \textbf{Expectation-Maximisation (EM)} permet de les apprendre \textbf{sans données labellisées} :
+
+\begin{enumerate}
+    \item \textbf{Initialisation} : estimation initiale de $m_k$ et $u_k$ (souvent par heuristique)
+    \item \textbf{Étape E (Expectation)} : pour chaque paire, calculer la probabilité a posteriori d'être un match : $P(M \mid \gamma) = \frac{\Lambda \cdot P(M)}{\Lambda \cdot P(M) + P(U)}$
+    \item \textbf{Étape M (Maximisation)} : recalculer $m_k$ et $u_k$ en utilisant ces probabilités comme poids
+    \item \textbf{Itération} : répéter jusqu'à convergence
+\end{enumerate}
+
+\noindent L'EM converge vers un maximum local des paramètres. La qualité de la convergence dépend fortement de la qualité des blocs utilisés pour l'entraînement.
+
+\subsection{La similarité JaroWinkler}
+
+L'algorithme \textbf{JaroWinkler} est la métrique de similarité de chaînes utilisée pour comparer les noms d'entreprises. Conçu spécifiquement pour les noms propres, il donne plus de poids aux caractères du début de la chaîne.
+
+Le score de Jaro entre deux chaînes $s_1$ et $s_2$ est :
+$$\text{Jaro}(s_1, s_2) = \frac{1}{3}\left(\frac{m}{|s_1|} + \frac{m}{|s_2|} + \frac{m - t/2}{m}\right)$$
+
+où $m$ est le nombre de caractères correspondants et $t$ le nombre de transpositions. Winkler ajoute un bonus pour les préfixes communs :
+$$\text{JaroWinkler}(s_1, s_2) = \text{Jaro}(s_1, s_2) + \ell \cdot p \cdot (1 - \text{Jaro}(s_1, s_2))$$
+
+où $\ell$ est la longueur du préfixe commun (max 4) et $p = 0.1$.
+
+\begin{table}[H]
+\centering
+\caption{Exemples de scores JaroWinkler sur des noms d'entreprises}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|c|l|}
+\hline
+\textbf{Chaîne 1} & \textbf{Chaîne 2} & \textbf{Score JW} & \textbf{Interprétation} \\
+\hline
+\texttt{ATLAS IMPORT SA} & \texttt{ATLAS IMPORT SARL} & 0,97 & Même entreprise \\
+\hline
+\texttt{RC/040178} & \texttt{040178} & 0,94 & Même RC, préfixe différent \\
+\hline
+\texttt{MARTIN SA CIE} & \texttt{MARTIN SA} & 0,96 & Même entreprise, nom tronqué \\
+\hline
+\texttt{CHAUVET STE} & \texttt{CHAUVEAU STE} & 0,98 & Entreprises \textbf{différentes} ! \\
+\hline
+\texttt{ATLAS IMPORT SA} & \texttt{MAURY EXPORT} & 0,42 & Entreprises différentes \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent La ligne 4 illustre le problème fondamental : deux entreprises différentes peuvent avoir un score JaroWinkler très élevé. C'est pourquoi le veto RC et la couche XGBoost sont indispensables.
+
+\subsection{XGBoost pour l'Entity Resolution}
+
+\textbf{XGBoost} (\textit{eXtreme Gradient Boosting}) est un algorithme d'apprentissage supervisé basé sur les arbres de décision boostés par gradient. Il est particulièrement adapté aux données tabulaires et gère nativement les valeurs manquantes.
+
+Dans le contexte de l'Entity Resolution, XGBoost intervient comme \textbf{classificateur de second niveau} : il prend en entrée les paires candidates produites par Splink (avec leur score de match) et des features comportementales supplémentaires, et produit une décision finale MATCH / NON-MATCH plus précise que Splink seul.
+
+L'avantage de XGBoost par rapport à Splink pour les cas difficiles est sa capacité à exploiter des \textbf{signaux non textuels} : montants habituels d'un opérateur, pays partenaires fréquents, ratio import/export — des patterns comportementaux que la similarité textuelle ne peut pas capturer.
+
+\subsection{Profil de cardinalité des champs — risques pour le blocage}
+\label{sec:blocking}
+
+La cardinalité des champs est un facteur critique pour la conception des règles de blocage. Des champs à faible cardinalité génèrent des blocs géants et des milliards de paires inutiles :
+
+\begin{table}[H]
+\centering
+\caption{Cardinalité des champs et risque pour le blocage}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|p{5cm}|}
+\hline
+\textbf{Champ} & \textbf{Valeurs distinctes} & \textbf{\% NULL} & \textbf{Risque blocage} \\
+\hline
+\texttt{RC} & $\sim$920 & 7,8\,\% & Faible — haute cardinalité \\
+\hline
+\texttt{RC\_R} & $\sim$1\,000 & 0\,\% & Nul — excellent \\
+\hline
+\texttt{CODE\_BANQUE\_BAM} & $\sim$35 actives & 0,5\,\% & Élevé seul — 5 banques = 70\,\% du volume \\
+\hline
+\texttt{CODE\_GUICHET\_BAM} & $\sim$4\,000 actifs & $\sim$1\,\% & Faible si combiné \\
+\hline
+\texttt{CENTRE\_R} & 108 & 2\,\% & Moyen — quelques centres dominants \\
+\hline
+\texttt{VILLE} & $\sim$30 & 0\,\% & Élevé — Casablanca $\sim$40\,\% \\
+\hline
+\texttt{ANNEE} & 5 & 0\,\% & Très élevé — ne jamais bloquer seul \\
+\hline
+\texttt{SENS} & 2 & 0\,\% & Extrême — 50k lignes par valeur \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Contrainte métier fondamentale — le veto RC}
+
+Le RC (Registre de Commerce) est un identifiant \textbf{légalement unique} au Maroc, attribué par les tribunaux de commerce. Deux enregistrements portant des RC différents et non nuls \textbf{ne peuvent pas} correspondre au même opérateur. Cette contrainte, triviale en droit, devient une règle de veto absolue dans le pipeline :
+
+\begin{center}
+\textit{Si $RC_i \neq \emptyset$ et $RC_j \neq \emptyset$ et $RC_i \neq RC_j$ $\Rightarrow$ rejeter la fusion, quelle que soit la similarité des noms.}
+\end{center}
+
+\noindent Cette règle encode la \textbf{connaissance métier} comme contrainte dure, ce qui est plus efficace que de laisser le modèle ML apprendre cette invariance par lui-même.
+
+\section{Architecture de la Solution Proposée}
+
+La solution proposée s'articule en \textbf{trois couches successives} :
+
+\begin{table}[H]
+\centering
+\caption{Architecture en trois couches du pipeline}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{|c|p{4cm}|p{8cm}|}
+\hline
+\textbf{Couche} & \textbf{Composant} & \textbf{Rôle} \\
+\hline
+1 & Nettoyage des données & Normalisation des champs bruités (\texttt{RC}, \texttt{RAISON\_SOCIALE}) avant tout traitement \\
+\hline
+2 & Splink (Fellegi-Sunter + EM) & Entity Resolution probabiliste — regroupe les déclarations par opérateur via similarité textuelle et signaux structurels \\
+\hline
+3 & XGBoost & Classificateur ML pour les cas difficiles que Splink ne résout pas — exploite les signaux comportementaux \\
+\hline
+\end{tabular}
+\end{table}
+
+\section*{Conclusion}
+
+Ce chapitre a établi le diagnostic précis de la problématique et posé les fondements théoriques complets de l'Entity Resolution : définition formelle, taxonomie, modèle de Fellegi-Sunter, algorithme EM, similarité JaroWinkler, et rôle de XGBoost. Ces bases théoriques constituent le socle sur lequel repose l'implémentation décrite dans le chapitre suivant.

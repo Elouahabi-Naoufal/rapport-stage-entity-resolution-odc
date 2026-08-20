@@ -1,0 +1,17 @@
+\clearpage
+\pagenumbering{arabic}
+\setcounter{page}{6}
+
+\chapter*{Introduction Générale}
+\label{chapter:introduction}
+\addcontentsline{toc}{chapter}{Introduction Générale}
+
+Dans un environnement économique mondial en perpétuelle mutation, la maîtrise des flux financiers internationaux constitue un enjeu stratégique majeur pour tout État soucieux de préserver l'équilibre de sa balance des paiements. Le Maroc, engagé dans une dynamique de libéralisation progressive de son régime de change, accorde une importance capitale au suivi rigoureux des opérations de change effectuées par les établissements bancaires.
+
+C'est dans ce cadre que l'\textbf{Office des Changes (OC)}, placé sous la tutelle du Ministère de l'Économie et des Finances, joue un rôle central. Pour accomplir ses missions statistiques et réglementaires, il s'appuie sur une base de données volumineuse — la table \texttt{RFF.formule\_T\_clean} — alimentée par les déclarations bancaires transmises par les établissements de crédit via le Répertoire des Flux Financiers (RFF).
+
+\textbf{La problématique centrale de ce projet} est la suivante : dans cette base de données, le même opérateur économique — une entreprise réalisant des opérations de change — apparaît sous des dizaines d'identités différentes et incohérentes. Le Registre de Commerce (\texttt{RC}) peut être formaté de multiples façons (\texttt{RC/040178}, \texttt{040 178}, \texttt{040178}) ou être absent~; la raison sociale peut être tronquée, abrégée ou orthographiée différemment selon la banque déclarante~; le donneur d'ordre peut varier d'une déclaration à l'autre. Cette fragmentation compromet directement la fiabilité des statistiques produites et l'efficacité des missions de contrôle de l'institution.
+
+L'objectif de ce stage de fin d'année, réalisé au sein de la \textbf{Division Organisation \& AMOA} du Département Organisation \& Système d'Information, est de concevoir et déployer un \textbf{pipeline complet d'Entity Resolution} capable de détecter automatiquement que plusieurs enregistrements distincts correspondent au même opérateur économique réel. Ce pipeline s'articule en trois couches : une couche de \textbf{nettoyage des données}, un moteur d'\textbf{Entity Resolution probabiliste} basé sur Splink, et un \textbf{classificateur XGBoost} pour les cas difficiles. Le tout fonctionne en mode \textbf{incrémental} pour s'intégrer dans le processus opérationnel de l'OdC.
+
+Ce rapport s'articule autour de quatre chapitres~: le premier présente le cadre institutionnel de l'Office des Changes~; le deuxième analyse la problématique de la qualité des données et la structure de la base~; le troisième décrit la conception et l'implémentation du pipeline~; le quatrième présente les résultats, l'évaluation des performances et les perspectives de mise en production.

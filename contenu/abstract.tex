@@ -1,0 +1,47 @@
+\pagenumbering{gobble}
+
+\vspace*{\stretch{1}}
+
+\begin{center}
+    \begin{minipage}{0.9\textwidth}
+        \centering
+        \textbf{Résumé}
+
+        \medskip
+        \begin{justify}
+L'Office des Changes du Maroc reçoit quotidiennement des milliers de déclarations bancaires via le Répertoire des Flux Financiers (RFF). Ces déclarations, stockées dans la table \texttt{RFF.formule\_T\_clean}, souffrent d'une problématique structurelle majeure : le même opérateur économique apparaît sous des identités multiples et incohérentes. Les champs \texttt{RC}, \texttt{RAISON\_SOCIALE} et \texttt{DONNEUR\_ORDRE} présentent des variations orthographiques, des valeurs manquantes et des incohérences de format qui fragmentent l'identité d'une même entité juridique en dizaines d'enregistrements distincts.
+
+Ce projet propose un pipeline complet en trois couches : (1) une \textbf{couche de nettoyage des données} qui normalise les champs bruités avant tout traitement, (2) un \textbf{pipeline d'Entity Resolution probabiliste} basé sur \textbf{Splink} (modèle de Fellegi-Sunter avec algorithme EM) qui regroupe les déclarations appartenant au même opérateur, et (3) un \textbf{classificateur XGBoost} qui traite les cas difficiles que Splink ne peut résoudre par similarité textuelle seule, en exploitant les signaux comportementaux des opérateurs. Le tout est conçu pour fonctionner en mode \textbf{incrémental}, traitant les nouvelles déclarations au fil de l'eau sans retraiter l'historique complet.
+
+Entraîné et évalué sur un jeu de données synthétique de 100\,000 déclarations représentant 1\,000 entreprises avec injection de bruit réaliste, le pipeline atteint un \textbf{recall de 100\,\%} et une \textbf{précision de 72,7\,\%} avec Splink seul, avec une amélioration attendue à \textbf{85--90\,\%} de précision après l'étape XGBoost.
+        \end{justify}
+
+        \bigskip
+        \textbf{Mots-clés :} Entity Resolution, Office des Changes, Splink, XGBoost, nettoyage de données, Registre de Commerce, déclarations bancaires, pipeline incrémental, Fellegi-Sunter.
+    \end{minipage}
+\end{center}
+
+\vspace*{\stretch{1}}
+
+\newpage
+
+\vspace*{\stretch{1}}
+\begin{center}
+    \begin{minipage}{0.9\textwidth}
+        \centering
+        \textbf{Abstract}
+
+        \medskip
+        \begin{justify}
+Morocco's Office des Changes receives thousands of daily banking declarations through the International Financial Flows Directory (RFF). These declarations, stored in the \texttt{RFF.formule\_T\_clean} table, suffer from a major structural issue: the same economic operator appears under multiple inconsistent identities. The \texttt{RC} (Trade Register), \texttt{RAISON\_SOCIALE}, and \texttt{DONNEUR\_ORDRE} fields exhibit spelling variations, missing values, and format inconsistencies that fragment a single legal entity into dozens of distinct records.
+
+This project proposes a complete three-layer pipeline: (1) a \textbf{data cleaning layer} that normalizes noisy fields before any processing, (2) a \textbf{probabilistic Entity Resolution pipeline} based on \textbf{Splink} (Fellegi-Sunter model with EM algorithm) that groups declarations belonging to the same operator, and (3) an \textbf{XGBoost classifier} that handles difficult cases Splink cannot resolve through textual similarity alone, leveraging behavioral signals of operators. The entire system is designed to operate in \textbf{incremental mode}, processing new declarations as they arrive without reprocessing the full historical dataset.
+
+Trained and evaluated on a synthetic dataset of 100,000 declarations representing 1,000 companies with realistic noise injection, the pipeline achieves \textbf{100\,\% recall} and \textbf{72.7\,\% precision} with Splink alone, with an expected improvement to \textbf{85--90\,\% precision} after the XGBoost step.
+        \end{justify}
+
+        \bigskip
+        \textbf{Keywords:} Entity Resolution, Office des Changes, Splink, XGBoost, data cleaning, Trade Register, banking declarations, incremental pipeline, Fellegi-Sunter.
+    \end{minipage}
+\end{center}
+\vspace*{\stretch{1}}
