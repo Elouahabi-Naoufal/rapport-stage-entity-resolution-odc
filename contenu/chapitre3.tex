@@ -280,7 +280,7 @@ Le mode incrémental permet de traiter les \textbf{nouvelles déclarations au fi
 \hline
 \textbf{Colonne} & \textbf{Type} & \textbf{Description} \\
 \hline
-\texttt{ID\_FORMULE} & INT & FK vers \texttt{formule\_T\_clean} \\
+\texttt{ID\_FORMULE} & INT & FK vers \texttt{formule\_P\_clean} \\
 \hline
 \texttt{CLUSTER\_ID} & INT & Identifiant du cluster d'opérateur \\
 \hline
@@ -299,28 +299,330 @@ Le mode incrémental permet de traiter les \textbf{nouvelles déclarations au fi
 
 \section{Architecture Globale du Pipeline}
 
+\definecolor{l1blue}{HTML}{2F5FA8}
+\definecolor{l2violet}{HTML}{6A3DA8}
+\definecolor{l3green}{HTML}{2E8B57}
+\tikzset{
+  plio/.style={rectangle, rounded corners=3pt, draw=black, very thick,
+    fill=black!78, text=white, font=\bfseries\footnotesize,
+    align=center, text width=6cm, inner sep=6pt},
+  pllayer1/.style={rectangle, rounded corners=3pt, draw=l1blue, thick,
+    fill=l1blue!10, text=black, font=\footnotesize, align=left,
+    text width=6cm, inner sep=6pt},
+  pllayer2/.style={rectangle, rounded corners=3pt, draw=l2violet, thick,
+    fill=l2violet!10, text=black, font=\footnotesize, align=left,
+    text width=6.6cm, inner sep=6pt},
+  pllayer3/.style={rectangle, rounded corners=3pt, draw=l3green, thick,
+    fill=l3green!10, text=black, font=\footnotesize, align=left,
+    text width=7cm, inner sep=6pt},
+  pldecision/.style={diamond, draw=black, thick, fill=yellow!12, aspect=2.4,
+    font=\bfseries\footnotesize, align=center, text width=2.6cm, inner sep=2pt},
+  placcept/.style={rectangle, rounded corners=3pt, draw=teal!65!black, very thick,
+    fill=teal!12, font=\bfseries\footnotesize, align=center,
+    text width=3.6cm, inner sep=6pt},
+  plreject/.style={rectangle, rounded corners=3pt, draw=red!65!black, very thick,
+    fill=red!8, font=\bfseries\footnotesize, align=center,
+    text width=3.2cm, inner sep=6pt},
+  plarr1/.style={-{Latex[length=2.2mm]}, thick, l1blue},
+  plarr2/.style={-{Latex[length=2.2mm]}, thick, l2violet},
+  plarr3/.style={-{Latex[length=2.2mm]}, thick, l3green},
+  placc/.style={-{Latex[length=2.2mm]}, thick, teal!65!black},
+  plrej/.style={-{Latex[length=2.2mm]}, thick, dashed, red!65!black},
+}
+
+\begin{landscape}
 \begin{figure}[H]
 \centering
-\begin{minipage}{0.9\textwidth}
-\textbf{Données d'entrée :} \texttt{RFF.formule\_T\_clean} (nouvelles déclarations)
-\begin{enumerate}
-    \item \textbf{Couche 1 — Nettoyage} : normalisation RC, RAISON\_SOCIALE, DONNEUR\_ORDRE $\rightarrow$ colonnes \texttt{\_CLEAN}
-    \item \textbf{Stratégie hybride} : sélection \texttt{\_R} si disponible, sinon \texttt{\_CLEAN}
-    \item \textbf{Couche 2 — Splink} :
-    \begin{itemize}
-        \item Blocage (7 règles hybrides \_R / dirty)
-        \item Comparaisons JaroWinkler + ExactMatch
-        \item Entraînement EM (3 sessions rotatives)
-        \item Prédiction + filtre veto RC
-        \item Sweep de seuil $\rightarrow$ seuil optimal 0,95
-        \item Clustering par composantes connexes
-    \end{itemize}
-    \item \textbf{Couche 3 — XGBoost} : feature engineering sur paires ambiguës $\rightarrow$ classification MATCH / NON-MATCH
-    \item \textbf{Mode incrémental} : rattachement aux clusters existants ou création de nouveaux clusters
-    \item \textbf{Persistance} : mise à jour de \texttt{RFF.entity\_clusters}
-\end{enumerate}
-\end{minipage}
-\caption{Architecture globale du pipeline d'Entity Resolution}
+\small
+\begin{tikzpicture}[node distance=1.0cm]
+
+\node[plio] (n-input) {RFF.formule\_P\_clean\\100\,000 déclarations, 50 colonnes};
+
+\node[pllayer1, below=1.3cm of n-input] (n-rc)
+  {\textbf{RC\_CLEAN} --- strip \texttt{"RC/"}, espaces, tirets $\rightarrow$ MAJUSCULES};
+\node[pllayer1, below=of n-rc] (n-rs)
+  {\textbf{RS\_CLEAN} --- suppression accents, ponctuation, suffixe \texttt{MAROC}};
+\node[pllayer1, below=of n-rs] (n-hyb)
+  {\textbf{Stratégie hybride} --- si \texttt{\_R} non NULL $\rightarrow$ \texttt{\_R}, sinon $\rightarrow$ \texttt{\_CLEAN}};
+
+\node[pllayer2, below=1.3cm of n-hyb] (n-bloc)
+  {\textbf{Blocage --- 5 règles}\\
+   \texttt{block\_on(RC\_R)} \\
+   \texttt{block\_on(RC)} \\
+   \texttt{CODE\_BANQUE\_BAM + SUBSTR(RC\_R,1,6)} \\
+   \texttt{CODE\_BANQUE\_BAM + SUBSTR(RS\_R,1,8)} \\
+   \texttt{CODE\_GUICHET\_BAM + SUBSTR(RS\_R,1,7)}};
+\node[pllayer2, below=of n-bloc] (n-comp)
+  {\textbf{Comparaisons}\\
+   JaroWinkler(RC\_R, [0.95, 0.88, 0.80])\\
+   JaroWinkler(RC, [0.95, 0.88, 0.80])\\
+   JaroWinkler(RS\_R, [0.95, 0.88, 0.80])\\
+   ExactMatch(CODE\_BANQUE\_BAM) \quad ExactMatch(CODE\_GUICHET\_BAM)};
+\node[pllayer2, below=of n-comp] (n-em)
+  {\textbf{Entraînement EM} --- 2 sessions rotatives (anchor RC\_R, anchor RC)};
+\node[pllayer2, below=of n-em] (n-pred)
+  {\textbf{Prédiction} --- \texttt{match\_probability} pour chaque paire};
+\node[pllayer2, below=of n-pred] (n-veto)
+  {\textbf{Filtre veto RC} --- si $RC_i\neq\emptyset$ et $RC_j\neq\emptyset$ et $RC_i\neq RC_j$ $\Rightarrow$ REJECT};
+\node[pllayer2, below=of n-veto] (n-sweep)
+  {\textbf{Sweep seuil} --- 0.50 $\rightarrow$ 0.90 \quad seuil optimal = 0.80};
+\node[pllayer2, below=of n-sweep] (n-clust)
+  {\textbf{Clustering} --- composantes connexes};
+
+\node[pldecision, below=1.4cm of n-clust] (n-dec1)
+  {\texttt{match\_prob} $\geq$ 0.80 ?};
+
+\node[placcept, right=3.8cm of n-dec1] (n-high)
+  {HAUTE CONFIANCE\\accepté directement\\SOURCE = SPLINK};
+
+\node[pllayer3, below=1.6cm of n-dec1] (n-feat)
+  {\textbf{Feature engineering}\\
+   13 features identité : JW(RC), JW(RS), JW(DO), same\_banque\_bam,
+   same\_guichet\_bam, rc\_missing\_l/r, both\_rc\_missing\\
+   + 10 features comportementales : same\_devise, same\_operation,
+   same\_sens, log\_amount\_diff, amount\_ratio, discrepancy\_diff\\
+   + \texttt{splink\_prob}};
+\node[pllayer3, below=of n-feat] (n-xgb)
+  {\textbf{XGBClassifier} --- n\_estimators=300, max\_depth=5, learning\_rate=0.05};
+\node[pllayer3, below=of n-xgb] (n-split)
+  {\textbf{Train/test split par COMPANY} (anti-leakage)};
+
+\node[plreject, left=3.8cm of n-xgb] (n-reject) {NON-MATCH\\REJETÉ};
+
+\node[pldecision, below=1.4cm of n-split] (n-dec2) {MATCH ?};
+
+\node[plio, below=2.4cm of n-dec2] (n-output)
+  {RFF.entity\_clusters\\
+   ID\_FORMULE, CLUSTER\_ID, CANONICAL\_RC,\\
+   CANONICAL\_NAME, MATCH\_SCORE, SOURCE};
+
+\draw[plarr1] (n-input) -- (n-rc);
+\draw[plarr1] (n-rc)    -- (n-rs);
+\draw[plarr1] (n-rs)    -- (n-hyb);
+\draw[plarr2] (n-hyb)   -- (n-bloc);
+\draw[plarr2] (n-bloc)  -- (n-comp)
+  node[midway, right, font=\scriptsize, l2violet, align=left]
+  {$\sim$5 milliards $\rightarrow$ $\sim$2 millions paires};
+\draw[plarr2] (n-comp)  -- (n-em);
+\draw[plarr2] (n-em)    -- (n-pred);
+\draw[plarr2] (n-pred)  -- (n-veto);
+\draw[plarr2] (n-veto)  -- (n-sweep);
+\draw[plarr2] (n-sweep) -- (n-clust);
+\draw[plarr2] (n-clust) -- (n-dec1);
+\draw[placc]  (n-dec1.east) -- (n-high.west) node[midway, above, font=\scriptsize] {$\geq$ 0.80};
+\draw[plarr3] (n-dec1.south) -- (n-feat.north)
+  node[midway, right, font=\scriptsize] {0.50 $\le$ P $<$ 0.80 (AMBIGU)};
+\draw[plrej]  (n-dec1.west) -- ++(-1.6,0) |- (n-reject.north)
+  node[near start, above, font=\scriptsize] {$<$ 0.50};
+\draw[plarr3] (n-feat)  -- (n-xgb);
+\draw[plarr3] (n-xgb)   -- (n-split);
+\draw[plarr3] (n-split) -- (n-dec2);
+\draw[plrej]  (n-dec2.west) -- ++(-1.6,0) |- (n-reject.south)
+  node[near start, below, font=\scriptsize] {NON-MATCH};
+\draw[placc]  (n-dec2.east) -- ++(1.8,0) |- ($(n-output.east)+(0,0.4)$)
+  node[near start, above, font=\scriptsize] {MATCH};
+\draw[placc]  (n-high.south) |- ($(n-output.east)+(0,0.8)$)
+  node[near start, right, font=\scriptsize] {SOURCE = SPLINK};
+
+\fill[l1blue] ($(n-rc.north west)+(-0.7,0.15)$) rectangle ($(n-hyb.south west)+(-0.25,-0.15)$);
+\node[rotate=90, text=white, font=\bfseries\scriptsize] at
+  ($(n-rc.north west)!0.5!(n-hyb.south west)+(-0.475,0)$) {LAYER 1 --- NETTOYAGE};
+\fill[l2violet] ($(n-bloc.north west)+(-0.7,0.15)$) rectangle ($(n-clust.south west)+(-0.25,-0.15)$);
+\node[rotate=90, text=white, font=\bfseries\scriptsize] at
+  ($(n-bloc.north west)!0.5!(n-clust.south west)+(-0.475,0)$) {LAYER 2 --- SPLINK / FELLEGI-SUNTER};
+\fill[l3green] ($(n-feat.north west)+(-0.7,0.15)$) rectangle ($(n-split.south west)+(-0.25,-0.15)$);
+\node[rotate=90, text=white, font=\bfseries\scriptsize] at
+  ($(n-feat.north west)!0.5!(n-split.south west)+(-0.475,0)$) {LAYER 3 --- XGBOOST};
+
+\end{tikzpicture}
+\caption{Architecture globale du pipeline d'Entity Resolution à 3 couches --- Office des Changes}
+\label{fig:er-pipeline}
+\end{figure}
+\end{landscape}
+
+\section{Pipeline Incrémental — Schéma de Flux}
+
+\tikzset{
+  inchist/.style={rectangle, rounded corners=3pt, draw=blue!55!black, thick,
+    fill=blue!8, font=\footnotesize, align=center, text width=4.8cm, inner sep=6pt},
+  incnew/.style={rectangle, rounded corners=3pt, draw=orange!70!black, thick,
+    fill=orange!10, font=\footnotesize, align=center, text width=4.8cm, inner sep=6pt},
+  incdec/.style={diamond, draw=black, thick, fill=yellow!10, aspect=2.4,
+    font=\bfseries\footnotesize, align=center, text width=2.7cm, inner sep=2pt},
+  incbblue/.style={rectangle, rounded corners=3pt, draw=blue!55!black, thick,
+    fill=blue!10, font=\footnotesize, align=center, text width=3.6cm, inner sep=6pt},
+  incborange/.style={rectangle, rounded corners=3pt, draw=orange!70!black, thick,
+    fill=orange!12, font=\footnotesize, align=center, text width=3.6cm, inner sep=6pt},
+  incbgray/.style={rectangle, rounded corners=3pt, draw=black!55, thick,
+    fill=black!5, font=\footnotesize, align=center, text width=3.6cm, inner sep=6pt},
+  incout/.style={rectangle, rounded corners=3pt, draw=black!70, very thick,
+    fill=black!8, font=\bfseries\footnotesize, align=center, text width=6.6cm, inner sep=7pt},
+  incnote/.style={rectangle, rounded corners=4pt, draw=black!50, dashed, thick,
+    fill=yellow!8, font=\footnotesize, align=left, text width=13.5cm, inner sep=8pt},
+  arrH/.style={-{Latex[length=2.2mm]}, thick, blue!55!black},
+  arrN/.style={-{Latex[length=2.2mm]}, thick, orange!70!black},
+  arrG/.style={-{Latex[length=2.2mm]}, thick, black!60},
+}
+
+\begin{figure}[H]
+\centering
+\small
+\begin{tikzpicture}[node distance=1.1cm]
+
+\node[inchist] (l1) {Historique\\RFF.formule\_P\_clean};
+\node[inchist, below=of l1] (l2)
+  {Clusters existants\\RFF.entity\_clusters\\
+   \scriptsize(CLUSTER\_ID, CANONICAL\_RC, CANONICAL\_NAME)};
+
+\node[incnew, right=5.5cm of l1] (r1)
+  {Nouvelles déclarations (décadaire)\\
+   \scriptsize détectées via MAX(ID\_FORMULE) $>$ last\_processed};
+\node[incnew, below=of r1] (r2)
+  {Couche nettoyage\\(RC\_CLEAN, RS\_CLEAN)};
+\node[incnew, below=of r2] (r3)
+  {Blocage hybride\\
+   \scriptsize nouvelles $\leftrightarrow$ nouvelles + nouvelles $\leftrightarrow$ historique\\
+   \scriptsize (mêmes 5 règles de blocage)};
+
+\node[incdec] (dec) at ($(l2.south)!0.5!(r3.south)+(0,-2.3)$)
+  {Score Splink\\$\geq$ 0.80 ?};
+
+\node[incbblue,   left=3.4cm of dec]  (yes)  {Rattachement\\au cluster existant};
+\node[incbgray,   below=1.7cm of dec] (amb)  {XGBoost rescore};
+\node[incborange, right=3.4cm of dec] (no)   {Nouveau cluster\\créé};
+
+\node[incout, below=2.3cm of amb] (out)
+  {Mise à jour RFF.entity\_clusters\\
+   SOURCE = SPLINK ou XGBOOST\\
+   DATE\_CLUSTER = NOW()};
+
+\node[incnote, below=1.0cm of out] (note)
+  {\textbf{Note :} le modèle Splink n'est \textbf{PAS} ré-entraîné à chaque batch ---
+   les paramètres $m$ et $u$ appris sur l'historique sont réutilisés.
+   Ré-entraînement complet uniquement si dérive détectée ($>$5\% nouveaux clusters).};
+
+\draw[arrH] (l1) -- (l2)
+  node[midway, right, font=\scriptsize, align=left] {100\,000 déclarations\\$\rightarrow$ $\sim$85\,000 clusters};
+\draw[arrN] (r1) -- (r2)
+  node[midway, right, font=\scriptsize] {batch décadaire ($\sim$500 nouvelles)};
+\draw[arrN] (r2) -- (r3);
+\draw[arrH] (l2.south) -- (dec.north west)
+  node[near start, left, font=\scriptsize, align=right] {clusters\\de référence};
+\draw[arrN] (r3.south) -- (dec.north east)
+  node[near start, right, font=\scriptsize, align=left] {paires\\candidates};
+\draw[arrH] (dec.west) -- (yes.east) node[midway, above, font=\scriptsize] {$\geq$ 0.80};
+\draw[arrG] (dec.south) -- (amb.north)
+  node[midway, right, font=\scriptsize] {0.50 $\le$ P $<$ 0.80 (AMBIGU)};
+\draw[arrN] (dec.east) -- (no.west) node[midway, above, font=\scriptsize] {$<$ 0.50};
+\draw[arrH] (yes.south) |- ($(out.west)+(0,0.5)$);
+\draw[arrG] (amb) -- (out);
+\draw[arrN] (no.south) |- ($(out.east)+(0,0.5)$);
+\draw[-{Latex[length=2mm]}, thick, black!50, dashed] (out.south) -- (note.north);
+
+\end{tikzpicture}
+\caption{Mode de traitement incrémental du pipeline d'Entity Resolution --- Office des Changes}
+\label{fig:er-incremental}
+\end{figure}
+
+\section{Architecture de Confiance XGBoost --- Zones et Ablation}
+
+\begin{figure}[H]
+\centering
+\small
+\begin{tikzpicture}[every node/.style={font=\small}]
+
+\fill[red!22]    (0,0) rectangle (5,1.4);
+\fill[orange!22] (5,0) rectangle (8,1.4);
+\fill[green!22]  (8,0) rectangle (10,1.4);
+\draw[thick] (0,0) rectangle (10,1.4);
+\draw[thick] (5,0) -- (5,1.4);
+\draw[thick] (8,0) -- (8,1.4);
+
+\node[anchor=center, font=\bfseries\scriptsize, text=red!55!black] at (2.5,1.75)
+  {\tikz{\fill[red!45] (0,0) rectangle (0.22,0.22);}\ ZONE 1 --- NON-MATCH};
+\node[anchor=center, font=\bfseries\scriptsize, text=orange!70!black] at (6.5,1.75)
+  {\tikz{\fill[orange!45] (0,0) rectangle (0.22,0.22);}\ ZONE 2 --- AMBIGUË};
+\node[anchor=west, font=\bfseries\scriptsize, text=green!45!black] at (8.1,2.05)
+  {\tikz{\fill[green!45] (0,0) rectangle (0.22,0.22);}\ ZONE 3 --- HAUTE CONFIANCE};
+
+\node[align=center, font=\footnotesize] at (2.5,0.7) {rejeté directement\\par Splink};
+\node[align=center, font=\footnotesize] at (6.5,0.7) {soumis à\\XGBoost};
+\node[align=center, font=\footnotesize] at (9,0.7)   {accepté\\directement};
+
+\foreach \x in {0,1,2,3,4,5,6,7,8,9,10}{
+  \draw[thick] (\x,0) -- (\x,-0.15);
+}
+\node[font=\scriptsize] at (0,-0.45)  {0.00};
+\node[font=\scriptsize] at (5,-0.45)  {0.50};
+\node[font=\scriptsize] at (8,-0.45)  {0.80};
+\node[font=\scriptsize] at (10,-0.45) {1.00};
+\node[font=\scriptsize] at (5,-0.8) {\textit{match\_probability (Splink)}};
+
+\draw[dashed, orange!70!black] (6.5,0) -- (6.5,-1.05) -- (7,-1.05);
+\node[rectangle, rounded corners=3pt, draw=orange!70!black, thick, fill=orange!8,
+      font=\scriptsize, align=left, text width=7.6cm, inner sep=6pt,
+      anchor=north west] at (3.2,-1.15)
+  {\textbf{Hard positives :} même entreprise, RC corrompu (JW 0.45--0.88)\\[2pt]
+   \textbf{Hard negatives :} entreprises différentes, RS similaire (JW $\geq$ 0.70)};
+
+\node[font=\bfseries\small, anchor=west] at (0,-3.1)
+  {Comparaison des modèles (ablation study) --- score F1};
+
+\node[font=\scriptsize, anchor=west] at (0,-3.55)
+  {\colorbox{blue!20}{\phantom{x}}\,Identity\quad
+   \colorbox{orange!20}{\phantom{x}}\,Behavioral\quad
+   \colorbox{teal!20}{\phantom{x}}\,Identity+Behavioral\quad
+   \colorbox{violet!20}{\phantom{x}}\,Splink only\quad
+   \colorbox{green!35}{\phantom{x}}\,Full system (best)};
+
+\draw[dashed, gray!55] (5,-3.9) -- (5,-9.3);
+\draw[dashed, gray!55] (8,-3.9) -- (8,-9.3);
+
+\node[anchor=east, align=right, font=\scriptsize, text width=6.2cm] at (-0.3,-4.2)
+  {\textbf{Model A --- Identity only}\\
+   JW RC, JW RS, JW DO, same\_banque, same\_guichet, rc\_missing};
+\fill[blue!20, draw=blue!60!black, thick] (0,-4.45) rectangle (8.7,-3.95);
+\node[anchor=west, font=\scriptsize\bfseries] at (8.9,-4.2) {0.87};
+
+\node[anchor=east, align=right, font=\scriptsize, text width=6.2cm] at (-0.3,-5.3)
+  {\textbf{Model B --- Behavioral only}\\
+   same\_devise, same\_operation, log\_amount\_diff, amount\_ratio, ...};
+\fill[orange!20, draw=orange!70!black, thick] (0,-5.55) rectangle (7.2,-5.05);
+\node[anchor=west, font=\scriptsize\bfseries] at (7.4,-5.3) {0.72};
+
+\node[anchor=east, align=right, font=\scriptsize, text width=6.2cm] at (-0.3,-6.4)
+  {\textbf{Model C --- Identity + Behavioral}};
+\fill[teal!20, draw=teal!70!black, thick] (0,-6.65) rectangle (9.1,-6.15);
+\node[anchor=west, font=\scriptsize\bfseries] at (9.3,-6.4) {0.91};
+
+\node[anchor=east, align=right, font=\scriptsize, text width=6.2cm] at (-0.3,-7.5)
+  {\textbf{Model D --- Splink probability only}};
+\fill[violet!20, draw=violet!70!black, thick] (0,-7.75) rectangle (6.5,-7.25);
+\node[anchor=west, font=\scriptsize\bfseries] at (6.7,-7.5) {0.65};
+
+\node[anchor=east, align=right, font=\scriptsize, text width=6.2cm] at (-0.3,-8.6)
+  {\textbf{Model E --- Full system}\\
+   Identity + Behavioral + Splink prob};
+\fill[green!35, draw=green!55!black, very thick] (0,-8.85) rectangle (9.3,-8.35);
+\node[anchor=west, font=\scriptsize\bfseries] at (9.5,-8.6) {0.93};
+\node[anchor=west, font=\bfseries\scriptsize, text=green!45!black] at (11.1,-8.6) {$\leftarrow$ BEST};
+
+\draw[thick] (0,-9.3) -- (10,-9.3);
+\foreach \x/\lab in {0/0.00,2.5/0.25,5/0.50,7.5/0.75,10/1.00}{
+  \draw[thick] (\x,-9.3) -- (\x,-9.45);
+  \node[font=\scriptsize] at (\x,-9.7) {\lab};
+}
+\node[font=\scriptsize] at (5,-10.0) {\textit{Score F1}};
+
+\node[rectangle, rounded corners=4pt, draw=black!55, thick, fill=yellow!8,
+      font=\footnotesize, align=left, text width=10.2cm, inner sep=8pt] at (5,-11.1)
+  {\textbf{Point clé :} XGBoost ne récupère \textbf{PAS} les faux négatifs de Splink
+   (paires jamais générées par le blocage). Il affine uniquement les paires
+   dans la zone ambiguë 0.50--0.80.};
+
+\end{tikzpicture}
+\caption{Architecture de confiance à trois zones et ablation XGBoost (\texttt{xgboost\_complement.py})}
+\label{fig:xgb-zones}
 \end{figure}
 
 \section*{Conclusion}

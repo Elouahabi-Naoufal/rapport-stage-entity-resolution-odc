@@ -1,0 +1,85 @@
+<mxfile host="app.diagrams.net" modified="2026-08-20T00:00:00.000Z" agent="Claude" version="24.0.0" type="device">
+  <diagram name="Data Pipeline" id="pipeline1">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="1900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- LAYER 1 BACKGROUND -->
+        <mxCell id="l1bg" value="Layer 1 &#8226; Data Cleaning" style="rounded=1;arcSize=6;fillColor=#FFE0B2;strokeColor=#E65100;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=10;spacingTop=10;fontColor=#E65100;fontStyle=1;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="440" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="rc" value="Normalize RC field&#10;remove &quot;RC/&quot; prefix, strip spaces, fix common typos" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#616161;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="90" width="360" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="rs" value="Normalize RAISON_SOCIALE&#10;uppercase, remove accents, strip punctuation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#616161;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="200" width="360" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- LAYER 2 BACKGROUND -->
+        <mxCell id="l2bg" value="Layer 2 &#8226; Splink Entity Resolution" style="rounded=1;arcSize=4;fillColor=#D1D0F5;strokeColor=#1A237E;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=10;spacingTop=10;fontColor=#FFFFFF;fontStyle=1;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="40" y="320" width="440" height="820" as="geometry" />
+        </mxCell>
+        <mxCell id="l2title" value="Layer 2 &#8226; Splink Entity Resolution" style="rounded=1;arcSize=30;fillColor=#1A237E;strokeColor=none;fontColor=#FFFFFF;fontStyle=1;fontSize=15;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="320" width="300" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="block" value="Blocking&#10;7 blocking rules" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#616161;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="370" width="360" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="comp" value="Comparison&#10;Jaro-Winkler similarity" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#616161;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="470" width="360" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="em" value="EM Training&#10;3 training sessions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#616161;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="570" width="360" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="pred" value="Prediction&#10;pairwise match scores" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#616161;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="670" width="360" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="veto" value="RC Veto Filter&#10;discard conflicting RC pairs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#616161;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="770" width="360" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="sweep" value="Threshold Sweep&#10;select optimal cut-off" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#616161;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="870" width="360" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="clusters" value="Clusters&#10;resolved entity groups" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8E7FB;strokeColor=#616161;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="970" width="360" height="65" as="geometry" />
+        </mxCell>
+
+        <!-- LAYER 3 BACKGROUND -->
+        <mxCell id="l3bg" value="Layer 3 &#8226; XGBoost Classifier" style="rounded=1;arcSize=6;fillColor=#C8E6C9;strokeColor=#2E7D32;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=10;spacingTop=10;fontColor=#2E7D32;fontStyle=1;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1180" width="440" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="feat" value="Behavioral Features&#10;amounts, countries, operations" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#616161;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="1230" width="360" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="decision" value="XGBoost Decision&#10;MATCH / NON-MATCH" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#616161;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="1330" width="360" height="65" as="geometry" />
+        </mxCell>
+
+        <!-- SEQUENTIAL ARROWS -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#616161;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="rc" target="rs"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#616161;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="rs" target="block"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#616161;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="block" target="comp"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#616161;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="comp" target="em"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#616161;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="em" target="pred"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#616161;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="pred" target="veto"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#616161;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="veto" target="sweep"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#616161;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="sweep" target="clusters"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#616161;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="clusters" target="feat"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#616161;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="feat" target="decision"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- INCREMENTAL MODE LOOP (right side) -->
+        <mxCell id="loop" value="Incremental Mode" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#424242;strokeWidth=2;dashed=1;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;fontStyle=1;fontSize=13;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="decision" target="rc">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="560" y="1362" />
+              <mxPoint x="560" y="125" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

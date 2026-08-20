@@ -8,6 +8,7 @@
 \usepackage{multirow}
 \usepackage{makecell}
 \usepackage{float}
+\usepackage{rotating} % doit être chargé AVANT tablefootnote
 \usepackage{tablefootnote}
 \usepackage{hyperref}
 \usepackage{bookmark}
@@ -39,8 +40,7 @@
 \renewcommand{\thesection}{\arabic{section}}
 
 \usepackage{pgfgantt} % pour le diagramme de Gantt
-\usepackage{rotating} % pour rotation si besoin
 \usepackage{tikz}
-\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds, calc}
 
 %------------ Fin Packages ----------------
