@@ -1,258 +1,308 @@
-\chapter{Résultats, Évaluation et Perspectives}
+\chapter{R\'{e}sultats, Exp\'{e}riences et Le\c{c}ons d'Ing\'{e}nierie}
 
-Ce chapitre présente les résultats quantitatifs du pipeline, l'analyse des erreurs, les leçons d'ingénierie tirées du projet et les perspectives de mise en production sur les données réelles de l'Office des Changes.
+Ce chapitre pr\'{e}sente les r\'{e}sultats quantitatifs des 18+ exp\'{e}riences r\'{e}alis\'{e}es, l'analyse des erreurs, et les le\c{c}ons d'ing\'{e}nierie tir\'{e}es du projet.
 
-\section{Dataset de Benchmark}
+\section{Dataset de r\'{e}f\'{e}rence}
 
-\subsection{Génération des données synthétiques}
+\subsection{Donn\'{e}es r\'{e}elles}
 
-En l'absence de données réelles labellisées, un dataset synthétique a été généré à partir des vraies tables de référence (Banque, Guichet, Centre, Region, Operation). Ce dataset respecte l'intégrité référentielle de la base réelle et injecte des erreurs contrôlées représentatives des patterns observés.
+Les donn\'{e}es source proviennent de la table \texttt{RFF.formule\_P\_clean} contenant 2\,500\,000 d\'{e}clarations. Les exp\'{e}riences ont \'{e}t\'{e} r\'{e}alis\'{e}es sur un \'{e}chantillon de 10\,000 d\'{e}clarations (349 d\'{e}clarations/entreprise en moyenne).
+
+\subsection{Donn\'{e}es ground truth}
+
+Le fichier \texttt{ground\_truth.csv} contient 520 entit\'{e}s r\'{e}elles avec la correspondance \texttt{ID\_FORMULE} $\rightarrow$ \texttt{company\_id}. Ce fichier n'est jamais utilis\'{e} pendant l'entra\^{i}nement --- uniquement pour l'\'{e}valuation.
+
+\section{R\'{e}sultats des exp\'{e}riences supervis\'{e}es (Exp 0-9)}
+
+\subsection{Exp\'{e}rience 0 --- Baseline synth\'{e}tique}
+
+XGBoost entra\^{i}n\'{e} sur des labels synth\'{e}tiques (m\^{e}me RC = 1, m\^{e}me nom = 1) produit un F1 = 0,063 et un ROC-AUC = 0,520 --- proche du hasard.
+
+\subsection{Exp\'{e}rience 1 --- Audit des labels}
+
+L'analyse r\'{e}v\`{e}le que 100\,\% des paires positives ont \texttt{rc\_exact=1} OU \texttt{name\_exact=1}. Les labels enseignent la r\`{e}gle triviale : ``m\^{e}me RC ou m\^{e}me nom = match''. Le mod\`{e}le n'a rien \`{a} apprendre.
+
+\subsection{Exp\'{e}riences 3-7 --- Pseudo-labeling}
+
+Diff\'{e}rentes strat\'{e}gies de pseudo-labeling ont \'{e}t\'{e} test\'{e}es :
+\begin{itemize}
+    \item Labels bas\'{e}s sur similarit\'{e} nom + ville $\rightarrow$ F1 = 1,0, AUC = 1,0
+    \item 621 paires adjudiqu\'{e}es par IA $\rightarrow$ 79,7\,\% UNKNOWN (insuffisance de preuve)
+    \item 126 paires d\'{e}cisives $\rightarrow$ F1 = 1,0, AUC = 1,0
+    \item 6\,920 paires difficiles $\rightarrow$ F1 = 1,0, AUC = 1,0
+\end{itemize}
+
+\noindent Dans tous les cas, le mod\`{e}le atteint une performance parfaite en validation crois\'{e}e.
+
+\subsection{Exp\'{e}rience 7 --- Test adversarial}
+
+495 paires UNKNOWN sont adjudiqu\'{e}es ind\'{e}pendamment par un humain :
+\begin{itemize}
+    \item 0 MATCH, 65 NON\_MATCH, 430 UNKNOWN
+    \item XGBoost (P $\geq$ 0,9) : 157 pr\'{e}dictions $\rightarrow$ 0 MATCH, 55 NON\_MATCH
+    \item \textbf{Pr\'{e}cision adversariale : 0,0000}
+\end{itemize}
+
+\noindent Le mod\`{e}le produit des faux positifs en toute confiance. \textbf{Z\'{e}ro valeur ajout\'{e}e.}
+
+\subsection{Exp\'{e}riences 8-9 --- LightGBM et CatBoost}
 
 \begin{table}[H]
 \centering
-\caption{Caractéristiques du dataset synthétique de benchmark}
+\caption{Comparaison des mod\`{e}les supervis\'{e}s --- Exp\'{e}riences 8-9}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Mod\`{e}le} & \textbf{F1 (CV)} & \textbf{AUC (CV)} & \textbf{Pr\'{e}cision adversariale} \\
+\hline
+LightGBM (Exp 8) & 1,000 & 1,000 & 0,000 \\
+\hline
+CatBoost (Exp 9) & 1,000 & 1,000 & 0,000 \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent Les trois mod\`{e}les apprennent des shortcuts triviaux. L'approche supervis\'{e} est \textbf{abandonn\'{e}e}.
+
+\section{R\'{e}sultats des exp\'{e}riences non supervis\'{e}es (Exp 10-18)}
+
+\subsection{Exp\'{e}rience 10 --- Splink seul (baseline)}
+
+\begin{table}[H]
+\centering
+\caption{Exp\'{e}rience 10 --- Splink seul (13\,337 enregistrements)}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|c|c|c|c|}
+\hline
+\textbf{Seuil} & \textbf{Clusters} & \textbf{Bruit \%} & \textbf{Dur\'{e}e} \\
+\hline
+0,40 & 715 & 88,7\,\% & 0,5s \\
+\hline
+0,50 & 620 & 90,2\,\% & 0,5s \\
+\hline
+0,65 & 338 & 94,8\,\% & 0,5s \\
+\hline
+0,80 & 220 & 96,6\,\% & 0,5s \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Exp\'{e}riences 11-13 --- Embeddings + clustering}
+
+\begin{table}[H]
+\centering
+\caption{Exp\'{e}riences 11-13 --- Embeddings et clustering (13\,337 enregistrements)}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{M\'{e}thode} & \textbf{Param\`{e}tres} & \textbf{Clusters} & \textbf{Bruit \%} & \textbf{Dur\'{e}e} \\
+\hline
+Emb + HDBSCAN & mcs=10 & 155 & 0,9\,\% & 32,0s \\
+\hline
+Emb + HDBSCAN & mcs=50 & 116 & 1,1\,\% & 32,2s \\
+\hline
+Emb + Leiden & nn=10, r=0,5 & 166 & 0,0\,\% & 2,8s \\
+\hline
+Emb + Leiden & nn=20, r=2,0 & 124 & 0,0\,\% & 4,4s \\
+\hline
+PCA + HDBSCAN & comp=16, mcs=20 & 126 & 2,1\,\% & 1,5s \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Exp\'{e}riences 14-17 --- Ensembles Splink + embeddings}
+
+\begin{table}[H]
+\centering
+\caption{Exp\'{e}riences 14-17 --- Ensembles Splink + embeddings}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{M\'{e}thode} & \textbf{Seuil} & \textbf{Clusters} & \textbf{Adv. Agreement} & \textbf{Dur\'{e}e} \\
+\hline
+Splink + Emb Ensemble & 0,5 & 474 & 0,0283 & 1,3s \\
+\hline
+Splink + Leiden & 0,3/0,5 & 731 & 0,0424 & 0,7s \\
+\hline
+Contrastive + Splink + Leiden & 0,3/0,5 & 954 & \textbf{0,0465} & 6,7s \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Exp\'{e}rience 18 --- \'{e}valuation ground truth}
+
+L'exp\'{e}rience 18 est la seule \`{a} utiliser le ground truth (520 entit\'{e}s r\'{e}elles) :
+
+\begin{table}[H]
+\centering
+\caption{Exp\'{e}rience 18 --- \'{e}valuation sur ground truth (13\,337 enregistrements)}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|c|c|c|c|}
+\hline
+\textbf{M\'{e}thode} & \textbf{F1\_pair} & \textbf{ARI} & \textbf{NMI} & \textbf{OverMerge} & \textbf{Clusters} \\
+\hline
+\textbf{TF-IDF + Leiden} & \textbf{0,348} & \textbf{0,380} & \textbf{0,845} & 0,756 & 170 \\
+\hline
+TF-IDF + Leiden (r=1,0) & 0,277 & 0,306 & 0,819 & 0,818 & 167 \\
+\hline
+Emb + Leiden (r=2,0) & 0,262 & 0,273 & 0,781 & 0,850 & 47 \\
+\hline
+Emb + HDBSCAN (mcs=20) & 0,138 & 0,371 & 0,836 & 0,786 & 63 \\
+\hline
+Splink CC (seuil=0,65) & 0,000 & 0,238 & 0,887 & 0,000 & 338 \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Observations :}
+\begin{itemize}
+    \item Le TF-IDF + Leiden surpasse les embeddings neuronaux --- les features textuelles simples sont plus discriminantes pour les noms d'entreprises marocaines.
+    \item Les approches Splink produisent F1 = 0 car les paires candidates ne couvrent que 0,008\,\% des paires possibles.
+    \item Le NMI \'{e}lev\'{e} (0,887) de Splink CC indique une bonne qualit\'{e} de segmentation m\^{e}me si le F1 est nul.
+\end{itemize}
+
+\section{R\'{e}sultats de la plateforme --- pipeline production}
+
+Le pipeline de production (Splink + embeddings + Leiden) sur 10\,000 enregistrements :
+
+\begin{table}[H]
+\centering
+\caption{R\'{e}sultats du pipeline de production (run \#10)}
 \renewcommand{\arraystretch}{1.3}
 \begin{tabular}{|l|c|}
 \hline
-\textbf{Paramètre} & \textbf{Valeur} \\
+\textbf{M\'{e}trique} & \textbf{Valeur} \\
 \hline
-Déclarations totales & 100\,000 \\
+Enregistrements trait\'{e}s & 10\,000 \\
 \hline
-Entreprises distinctes & 1\,000 \\
+Paires de matches & 237\,000 \\
 \hline
-Déclarations / entreprise (moyenne) & $\sim$100 \\
+Entit\'{e}s r\'{e}solues & 502 \\
 \hline
-Déclarations / entreprise (maximum) & 800 (cap dur) \\
+Dur\'{e}e totale & 349s \\
 \hline
-Banques actives utilisées & 35 / 48 \\
+Dur\'{e}e embeddings & 2,5s (e5-small, 384-dim) \\
 \hline
-Agences utilisées & $\sim$4\,000 / 7\,776 \\
-\hline
-Années couvertes & 2020 -- 2024 \\
-\hline
-RC null & 8,0\,\% \\
-\hline
-RC dirty $\neq$ RC\_R & 29,6\,\% \\
-\hline
-RAISON\_SOCIALE dirty $\neq$ RAISON\_SOCIALE\_R & 34,6\,\% \\
-\hline
-CENTRE dirty $\neq$ CENTRE\_R & 1,9\,\% \\
-\hline
-DONNEUR\_ORDRE alias différent & $\sim$50\,\% \\
+Dur\'{e}e similarit\'{e} cosinus & 0,8s (vectoris\'{e}e) \\
 \hline
 \end{tabular}
 \end{table}
 
-\subsection{La vérité terrain — \texttt{ground\_truth.csv}}
+\section{Analyse des erreurs}
 
-Le fichier \texttt{ground\_truth.csv} contient la correspondance cachée \texttt{ID\_FORMULE} $\rightarrow$ \texttt{company\_id}. Splink et XGBoost ne voient jamais ce fichier pendant l'entraînement. Il sert uniquement à mesurer les performances a posteriori.
-
-\section{Résultats — Couche Nettoyage}
-
-La couche de nettoyage améliore directement la qualité des comparaisons JaroWinkler :
+\subsection{Types de corruption et r\'{e}cup\'{e}rabilit\'{e}}
 
 \begin{table}[H]
 \centering
-\caption{Impact du nettoyage sur les scores JaroWinkler}
+\caption{Impact des types de corruption}
 \renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|l|l|c|c|}
+\begin{tabular}{|p{3.5cm}|c|c|p{5cm}|}
 \hline
-\textbf{Paire} & \textbf{Champ} & \textbf{Score avant nettoyage} & \textbf{Score après nettoyage} \\
+\textbf{Type} & \textbf{Fr\'{e}quence} & \textbf{R\'{e}cup\'{e}rable} & \textbf{M\'{e}canisme} \\
 \hline
-\texttt{RC/040178} vs \texttt{040178} & RC & 0,94 & 1,00 \\
+RC pr\'{e}fixe \texttt{RC/} & 5,0\,\% & Oui & JaroWinkler $\geq$ 0,95 \\
 \hline
-\texttt{040 178} vs \texttt{040178} & RC & 0,97 & 1,00 \\
+RC espace/tiret & 6,0\,\% & Oui & JaroWinkler $\geq$ 0,90 \\
 \hline
-\texttt{SOCIÉTÉ} vs \texttt{SOCIETE} & RS & 0,96 & 1,00 \\
+RC null & 8,0\,\% & Partiellement & R\`{e}gles de fallback \\
 \hline
-\texttt{S.A.R.L.} vs \texttt{SARL} & RS & 0,88 & 1,00 \\
-\hline
-\end{tabular}
-\end{table}
-
-\section{Résultats — Couche Splink}
-
-\subsection{Métriques de blocage}
-
-\begin{table}[H]
-\centering
-\caption{Performance des règles de blocage}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|l|c|c|c|}
-\hline
-\textbf{Règle} & \textbf{Paires générées} & \textbf{Vrais matches couverts} & \textbf{Contribution recall} \\
-\hline
-\texttt{RC} dirty & $\sim$420\,000 & $\sim$58\,000 & 70\,\% \\
-\hline
-\texttt{RC\_R} canonique & $\sim$610\,000 & $\sim$89\,000 & +22\,\% \\
-\hline
-BAM + nom[:8] & $\sim$180\,000 & $\sim$92\,000 & +3\,\% \\
-\hline
-Autres règles & $\sim$790\,000 & $\sim$99\,000 & +5\,\% \\
-\hline
-\textbf{Total 7 règles} & \textbf{$\sim$2\,000\,000} & \textbf{$\sim$99\,000 / 100\,000} & \textbf{$\geq$99\,\% recall} \\
-\hline
-\end{tabular}
-\end{table}
-
-\subsection{Résultats par seuil de décision}
-
-\begin{table}[H]
-\centering
-\caption{Résultats Splink par seuil de décision (approche D — configuration optimale)}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|c|c|c|c|c|c|}
-\hline
-\textbf{Seuil} & \textbf{Clusters} & \textbf{Précision} & \textbf{Recall} & \textbf{F1} & \textbf{Méga-clusters} \\
-\hline
-0,70 & 672 & 67,2\,\% & 100\,\% & 73,5\,\% & 4 \\
-\hline
-0,75 & 696 & 69,6\,\% & 100\,\% & 75,8\,\% & 3 \\
-\hline
-0,80 & 700 & 70,0\,\% & 100\,\% & 76,1\,\% & 2 \\
-\hline
-0,85 & 700 & 70,0\,\% & 100\,\% & 76,1\,\% & 2 \\
-\hline
-0,90 & 722 & 72,2\,\% & 100\,\% & 78,2\,\% & 2 \\
-\hline
-\textbf{0,95} & \textbf{727} & \textbf{72,7\,\%} & \textbf{100\,\%} & \textbf{78,6\,\%} & \textbf{2} \\
-\hline
-\end{tabular}
-\end{table}
-
-\noindent\textbf{Interprétation :} 727 clusters trouvés pour 1\,000 entreprises réelles. Le recall de 100\,\% signifie que Splink ne rate aucun vrai match. Les 273 clusters sur-fusionnés (contenant 2+ entreprises) constituent le problème résiduel traité par XGBoost.
-
-\subsection{Comparaison des 4 approches testées}
-
-\begin{table}[H]
-\centering
-\caption{Comparaison des approches Splink}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|l|p{5cm}|c|c|c|}
-\hline
-\textbf{Approche} & \textbf{Description} & \textbf{Précision} & \textbf{Recall} & \textbf{F1} \\
-\hline
-A — Baseline & 5 règles originales dont méga-cluster & 40,8\,\% & 99,9\,\% & 46,1\,\% \\
-\hline
-B — Blocage corrigé & 7 règles, sans CODE\_BAM+ANNEE+SENS & $\sim$65\,\% & $\sim$99\,\% & $\sim$77\,\% \\
-\hline
-C — Comparaisons enrichies & B + filtre veto RC & $\sim$70\,\% & $\sim$98\,\% & $\sim$80\,\% \\
-\hline
-\textbf{D — Configuration optimale} & \textbf{B + C + seuil 0,95} & \textbf{72,7\,\%} & \textbf{100\,\%} & \textbf{78,6\,\%} \\
-\hline
-\end{tabular}
-\end{table}
-
-\section{Analyse des Erreurs}
-
-\subsection{Types de corruption et récupérabilité}
-
-\begin{table}[H]
-\centering
-\caption{Impact des types de corruption sur les résultats Splink}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|p{4cm}|c|c|p{5cm}|}
-\hline
-\textbf{Type de corruption} & \textbf{Fréquence} & \textbf{Récupérable ?} & \textbf{Mécanisme} \\
-\hline
-RC préfixe \texttt{RC/} & 5,0\,\% & Oui & JaroWinkler score $\geq$ 0,95 \\
-\hline
-RC espace/tiret & 6,0\,\% & Oui & JaroWinkler score $\geq$ 0,90 \\
-\hline
-RC null & 8,0\,\% & Partiellement & Règles de fallback BAM+nom \\
-\hline
-Nom tronqué & $\sim$15\,\% & Oui & JaroWinkler gère bien \\
+Nom tronqu\'{e} & $\sim$15\,\% & Oui & JaroWinkler g\`{e}re bien \\
 \hline
 Variante forme juridique & $\sim$8\,\% & Partiellement & JW $<$ 0,92 possible \\
 \hline
-Accent supprimé & $\sim$6\,\% & Oui & Nettoyage + JW \\
-\hline
-Alias DO différent & $\sim$50\,\% & Non seul & Signal secondaire uniquement \\
+Alias DO diff\'{e}rent & $\sim$50\,\% & Non seul & Signal secondaire \\
 \hline
 \end{tabular}
 \end{table}
 
-\subsection{Cas difficiles — frontière du matcher}
+\subsection{Cas difficiles --- fronti\`{e}re du matcher}
 
-Les cas les plus problématiques sont les entreprises avec des noms courts et génériques dont les variantes sont quasi-identiques entre entités différentes :
+Les faux positifs observ\'{e}s concernent des entreprises avec des noms courts et g\'{e}n\'{e}riques :
 
 \begin{table}[H]
 \centering
-\caption{Exemples de faux positifs observés (entreprises différentes, noms similaires)}
+\caption{Faux positifs observ\'{e}s (entreprises diff\'{e}rentes, noms similaires)}
 \renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|l|l|l|l|c|}
+\begin{tabular}{|l|l|l|c|}
 \hline
-\textbf{RC\_l} & \textbf{RC\_r} & \textbf{Nom\_l} & \textbf{Nom\_r} & \textbf{Score Splink} \\
+\textbf{Nom\_l} & \textbf{Nom\_r} & \textbf{RC diff\'{e}rents} & \textbf{Score Splink} \\
 \hline
-122414 & 102424 & CHAUVET STE & CHAUVEAU STE & 0,998 \\
+CHAUVET STE & CHAUVEAU STE & Oui & 0,998 \\
 \hline
-075694 & 964066 & MAURY SARL & MAURY SARL AU & 0,979 \\
+MAURY SARL & MAURY SARL AU & Oui & 0,979 \\
 \hline
-180041 & 927524 & PARIS SAS & PARIS SARL STE & 0,936 \\
+PARIS SAS & PARIS SARL STE & Oui & 0,936 \\
 \hline
 \end{tabular}
 \end{table}
 
-\noindent Ces cas illustrent pourquoi le veto RC est indispensable : les trois paires ci-dessus ont des RC différents et sont correctement rejetées par le filtre de veto.
+\noindent Le veto RC \'{e}limine correctement ces cas.
 
-\section{Résultats attendus — Couche XGBoost}
-
-\begin{table}[H]
-\centering
-\caption{Amélioration attendue avec XGBoost}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|l|c|c|c|}
-\hline
-\textbf{Approche} & \textbf{Précision} & \textbf{Recall} & \textbf{F1} \\
-\hline
-Splink seul (approche D) & 72,7\,\% & 100\,\% & 78,6\,\% \\
-\hline
-\textbf{Splink + XGBoost} & \textbf{85--90\,\%} & \textbf{$\sim$95\,\%} & \textbf{$\sim$89\,\%} \\
-\hline
-\end{tabular}
-\end{table}
-
-\noindent Le léger recul du recall (100\,\% $\rightarrow$ $\sim$95\,\%) est le prix à payer pour l'amélioration de la précision : XGBoost sépare certains clusters sur-fusionnés, ce qui peut parfois séparer des vrais matches dans les cas extrêmes.
-
-\section{Leçons d'Ingénierie}
+\section{Le\c{c}ons d'ing\'{e}nierie}
 
 \begin{enumerate}
-    \item \textbf{Le blocage façonne tout} : les règles de blocage ne filtrent pas seulement les comparaisons — elles entraînent le modèle EM. Un mauvais blocage (ex : \texttt{CODE\_BANQUE\_BAM + ANNEE + SENS}) enseigne de mauvaises leçons qui corrompent toutes les prédictions en aval.
+    \item \textbf{Le blocage fa\c{c}onne tout} : les r\`{e}gles de blocage entra\^{i}nent le mod\`{e}le EM. Un mauvais blocage enseigne de mauvaises le\c{c}ons qui corrompent toutes les pr\'{e}dictions en aval.
 
-    \item \textbf{Mesurer avant d'agir} : un script de diagnostic du blocage (mesure des paires générées par règle) prend 10 minutes à écrire et révèle immédiatement les méga-blocs. Sans ce diagnostic, des heures de débogage seraient nécessaires.
+    \item \textbf{Mesurer avant d'agir} : un script de diagnostic du blocage (mesure des paires g\'{e}n\'{e}r\'{e}es par r\`{e}gle) prend 10 minutes et r\'{e}v\`{e}le imm\'{e}diatement les m\'{e}ga-blocs.
 
-    \item \textbf{Les contraintes dures battent les features douces} : la règle de veto RC est une logique métier triviale, mais elle élimine toute une classe d'erreurs qu'un modèle ML complexe aurait du mal à gérer.
+    \item \textbf{Les contraintes dures battent les features douces} : la r\`{e}gle de veto RC est une logique m\'{e}tier triviale mais \'{e}limine toute une classe d'erreurs.
 
-    \item \textbf{Les données synthétiques doivent être algorithmiquement réalistes} : des données visuellement plausibles peuvent être toxiques pour un algorithme ML. La distribution Zipfienne sans cap générait des entreprises avec 3\,000+ déclarations — statistiquement impossible et computationnellement catastrophique.
+    \item \textbf{Les donn\'{e}es synth\'{e}tiques doivent '\^{e}tre algorithmiquement r\'{e}alistes} : des donn\'{e}es visuellement plausibles peuvent \^{e}tre toxiques pour un algorithme ML.
 
-    \item \textbf{La stratégie hybride \_R / dirty est indispensable} : les anciens enregistrements sans colonnes \texttt{\_R} doivent être traités par des règles de fallback sur les champs bruités. Ignorer ce cas revient à exclure une partie significative de l'historique.
+    \item \textbf{La strat\'{e}gie hybride \_R / dirty est indispensable} : les anciens enregistrements sans colonnes \texttt{\_R} doivent \^{e}tre trait\'{e}s par des r\`{e}gles de fallback.
+
+    \item \textbf{Les mod\`{e}les supervis\'{e}s apprennent des shortcuts} : sans labels de qualit\'{e}, XGBoost/LightGBM/CatBoost apprennent des r\`{e}gles triviales et n'ajoutent aucune valeur.
+
+    \item \textbf{Le clustering non supervis\'{e} est plus robuste} : TF-IDF + Leiden produit des r\'{e}sultats interpr\'{e}tables sans donn\'{e}es labellis\'{e}es.
+
+    \item \textbf{La vectorisation est critique} : le calcul de similarit\'{e} cosinus pour 237\,000 paires est pass\'{e} de 30 minutes (boucle) \`{a} 0,8s (matrice numpy).
 \end{enumerate}
 
-\section{Évaluation de la Maturité pour la Production}
+\section{Dynamique d'ex\'{e}cution concurrente}
+
+Le syst\`{e}me supporte l'ex\'{e}cution de plusieurs pipelines simultan\'{e}ment. Aucun verrou, mutex ou s\'{e}maphore n'existe dans l'architectructure. Chaque ex\'{e}cution dispose d'un contexte isol\'{e} dans le worker Python (thread pool FastAPI). La seule limitation est la capacit\'{e} CPU/RAM du processus Python unique.
+
+\section{Limites de l'\'{e}valuation}
+
+\begin{itemize}
+    \item Les donn\'{e}es synth\'{e}tiques ne reproduisent pas n\'{e}cessairement toutes les sp\'{e}cificit\'{e}s des donn\'{e}es r\'{e}elles.
+    \item La validation sur un \'{e}chantillon r\'{e}el annot\'{e} manuellement (500--2\,000 paires) n'a pas \'{e}t\'{e} enti\`{e}rement r\'{e}alis\'{e}e durant le stage.
+    \item Les performances obtenues ne constituent pas une estimation directe des performances op\'{e}rationnelles.
+\end{itemize}
+
+\section{Synth\`{e}se finale des exp\'{e}riences}
 
 \begin{table}[H]
 \centering
-\caption{Évaluation de la maturité du pipeline pour la production}
+\caption{Synth\`{e}se des 18+ exp\'{e}riences --- parcours exp\'{e}rimental complet}
 \renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|p{4cm}|p{4cm}|p{5cm}|}
+\begin{tabular}{|p{2cm}|p{3cm}|c|c|c|p{3cm}|}
 \hline
-\textbf{Critère} & \textbf{Statut} & \textbf{Commentaire} \\
+\textbf{Exp \#} & \textbf{Approche} & \textbf{F1} & \textbf{ARI} & \textbf{Clusters} & \textbf{D\'{e}cision} \\
 \hline
-Précision & 72,7\,\% (Splink) / 85--90\,\% (+ XGBoost) & Acceptable pour une première mise en production \\
+0 & XGBoost synth\'{e}tique & 0,063 & --- & 436 & Abandonn\'{e} \\
 \hline
-Recall & 100\,\% & Aucun vrai match raté \\
+1-7 & Pseudo-labeling & 1,000 & --- & --- & Overfitting \\
 \hline
-Performance & $\sim$2M paires en quelques minutes & Compatible avec les volumes OdC \\
+8 & LightGBM & 1,000 & --- & --- & 0\,\% adv. prec. \\
 \hline
-Robustesse & 8\,\% RC null, 30\,\% noms corrompus & Gérés par les règles de fallback \\
+9 & CatBoost & 1,000 & --- & --- & 0\,\% adv. prec. \\
 \hline
-Mode incrémental & Conçu et documenté & À valider sur données réelles \\
+10 & Splink seul & --- & --- & 220-715 & Retenu \\
 \hline
-Validation réelle & Non encore effectuée & Étape suivante prioritaire \\
+11 & Emb + HDBSCAN & --- & --- & 116-155 & Lent \\
+\hline
+12 & Emb + Leiden & --- & --- & 124-166 & Prometteur \\
+\hline
+15 & Splink + Leiden & --- & --- & 249-731 & Retenu \\
+\hline
+17 & Contrastive + Splink + Leiden & --- & --- & 234-954 & Meilleur accord \\
+\hline
+18 & TF-IDF + Leiden (GT) & 0,348 & 0,380 & 170 & Meilleur F1 \\
 \hline
 \end{tabular}
 \end{table}
 
 \section*{Conclusion}
 
-Ce chapitre a démontré que le pipeline atteint des performances solides sur un benchmark synthétique réaliste. Le recall de 100\,\% garantit qu'aucun vrai match n'est raté. La précision de 72,7\,\% avec Splink seul, améliorable à 85--90\,\% avec XGBoost, constitue une base solide pour une mise en production progressive. La prochaine étape est la validation sur les données historiques réelles de l'Office des Changes.
+Ce chapitre a d\'{e}montr\'{e} que le pipeline de production (Splink + embeddings + Leiden) produit 502 entit\'{e}s depuis 10\,000 d\'{e}clarations en 349 secondes. Les 18+ exp\'{e}riences r\'{e}alis\'{e}es illustrent le parcours d'ing\'{e}nierie : des approches d\'{e}terministes aux mod\`{e}les supervis\'{e}s (rejet\'{e}s), puis au clustering non supervis\'{e} (retenu). La le\c{c}on principale est que la qualit\'{e} des donn\'{e}es et le blocage sont plus importants que la complexit\'{e} du mod\`{e}le.

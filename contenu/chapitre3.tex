@@ -1,24 +1,139 @@
-\chapter{Conception et Implémentation du Pipeline d'Entity Resolution}
+\chapter{Impl\'{e}mentation du Pipeline et Architecture de la Plateforme}
 
-Ce chapitre décrit la conception et l'implémentation complète du pipeline en trois couches : nettoyage des données, Entity Resolution avec Splink, et classification ML avec XGBoost. Il présente également le mode de fonctionnement incrémental du système.
+Ce chapitre pr\'{e}sente l'impl\'{e}mentation compl\`{e}te de l'architecture retenue apr\`{e}s les exp\'{e}riences : le pipeline d'Entity Resolution, l'architectructure logicielle de la plateforme, la base de donn\'{e}es PostgreSQL, et l'interface op\'{e}rationnelle.
 
-\section{Couche 1 — Nettoyage des Données}
+\section{Architecture globale du syst\`{e}me}
 
-Avant tout traitement d'Entity Resolution, une couche de nettoyage est appliquée sur les champs bruités. Cette étape est indispensable : des données mal normalisées réduisent l'efficacité des algorithmes de similarité textuelle et augmentent les faux négatifs.
+La plateforme est compos\'{e}e de quatre couches logicielles communicantes :
 
-\subsection{Nettoyage du champ \texttt{RC}}
+\begin{figure}[H]
+\centering
+\small
+\begin{tikzpicture}[
+  node distance=0.8cm,
+  component/.style={rectangle, rounded corners=4pt, draw=black, thick, minimum width=3cm, minimum height=1.2cm, align=center, font=\small},
+  frontend/.style={component, fill=blue!12, draw=blue!60!black},
+  backend/.style={component, fill=violet!12, draw=violet!60!black},
+  worker/.style={component, fill=orange!12, draw=orange!60!black},
+  database/.style={component, fill=teal!12, draw=teal!60!black},
+  arr/.style={-{Latex[length=2.5mm]}, thick}
+]
 
-Le RC est le champ le plus critique. Les transformations appliquées sont :
+\node[frontend] (fe) {React + Vite\\[-2pt]\footnotesize Port 5173};
+\node[backend, right=2cm of fe] (be) {Express.js\\[-2pt]\footnotesize Port 3001};
+\node[worker, right=2cm of be] (wo) {Python Worker\\[-2pt]\footnotesize FastAPI :8001};
+\node[database, below=1.5cm of be] (db) {PostgreSQL\\[-2pt]\footnotesize ercp :5432};
+
+\draw[arr] (fe) -- node[above, font=\scriptsize] {REST + SSE} (be);
+\draw[arr] (be) -- node[above, font=\scriptsize] {HTTP/JSON} (wo);
+\draw[arr] (be) -- node[right, font=\scriptsize] {Drizzle ORM} (db);
+\draw[arr, dashed] (wo) -- ++(0,-1.5) -| node[below, font=\scriptsize, pos=0.25] {pyodbc / MSSQL} (db);
+
+\end{tikzpicture}
+\caption{Architecture globale de la plateforme --- quatre couches communicantes}
+\label{fig:system-arch}
+\end{figure}
 
 \begin{table}[H]
 \centering
-\caption{Règles de nettoyage du champ \texttt{RC}}
+\caption{Technologies utilis\'{e}es par couche}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|p{7cm}|}
+\hline
+\textbf{Couche} & \textbf{Technologie} & \textbf{Justification} \\
+\hline
+Frontend & React 18 + TypeScript + Vite & SPA moderne, rendu rapide, typage fort \\
+\hline
+Backend & Express.js (Node.js) & Serveur API REST + SSE pour le suivi en temps r\'{e}el \\
+\hline
+Worker & Python 3.14 + FastAPI + Splink 4 + DuckDB & Calcul scientifique, Splink natif, DuckDB comme backend SQL \\
+\hline
+Base de donn\'{e}es & PostgreSQL 16 + Drizzle ORM & Donn\'{e}es relationnelles, migrations, int\'{e}grit\'{e} r\'{e}férentielle \\
+\hline
+Source externe & SQL Server (MSSQL) via pyodbc & Donn\'{e}es sources Office des Changes \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Le pipeline d'Entity Resolution}
+
+Le pipeline se compose de 9 \'{e}tapes ex\'{e}cut\'{e}es s\'{e}quentiellement. Les 4 premi\`{e}res (chargement, nettoyage, normalisation, Splink) sont toujours actives. Les \'{e}tapes 6-7 (embeddings + clustering Leiden) sont optionnelles et configurables.
+
+\begin{figure}[H]
+\centering
+\small
+\begin{tikzpicture}[
+  node distance=0.35cm,
+  stage/.style={rectangle, rounded corners=3pt, draw=black, thick, minimum width=2.2cm, minimum height=0.7cm, align=center, font=\scriptsize},
+  sdata/.style={stage, fill=blue!15, draw=blue!60!black},
+  sprocess/.style={stage, fill=violet!15, draw=violet!60!black},
+  soutput/.style={stage, fill=teal!15, draw=teal!60!black},
+  soptional/.style={stage, fill=orange!10, draw=orange!60!black, dashed},
+  arr/.style={-{Latex[length=2mm]}, thick},
+  arrdash/.style={-{Latex[length=2mm]}, thick, dashed, orange!60!black}
+]
+
+\node[sdata] (s1) {Load};
+\node[sprocess, below=of s1] (s2) {Clean};
+\node[sprocess, below=of s2] (s3) {Normalize};
+\node[sprocess, below=of s3] (s4) {Splink};
+\node[sprocess, below=of s4] (s5) {Pair Decisions};
+\node[soptional, below=of s5] (s6) {Embeddings};
+\node[sprocess, below=of s6] (s7) {Clustering};
+\node[sprocess, below=of s7] (s8) {Materialize};
+\node[soutput, below=of s8] (s9) {Output};
+
+\draw[arr] (s1) -- (s2);
+\draw[arr] (s2) -- (s3);
+\draw[arr] (s3) -- (s4);
+\draw[arr] (s4) -- (s5);
+\draw[arrdash] (s5) -- (s6);
+\draw[arrdash] (s6) -- (s7);
+\draw[arr] (s7) -- (s8);
+\draw[arr] (s8) -- (s9);
+
+\node[right=0.8cm of s1, font=\scriptsize, text=blue!60!black] {SQL Server $\rightarrow$ DataFrame};
+\node[right=0.8cm of s2, font=\scriptsize] {Trim, nulls, dedup};
+\node[right=0.8cm of s3, font=\scriptsize] {NFC, RC rules, RS normalization};
+\node[right=0.8cm of s4, font=\scriptsize] {EM training, candidate pairs};
+\node[right=0.8cm of s5, font=\scriptsize] {Accept/reject pairs};
+\node[right=0.8cm of s6, font=\scriptsize, text=orange!60!black] {e5-small embeddings};
+\node[right=0.8cm of s7, font=\scriptsize] {CC or Leiden};
+\node[right=0.8cm of s8, font=\scriptsize] {Entity IDs, canonical attrs};
+\node[right=0.8cm of s9, font=\scriptsize] {SQL Server output table};
+
+\end{tikzpicture}
+\caption{Pipeline d'Entity Resolution --- 9 \'{e}tapes, les \'{e}tapes 6-7 sont optionnelles}
+\label{fig:er-pipeline}
+\end{figure}
+
+\subsection{\'{E}tape 1 : chargement des donn\'{e}es}
+
+Le connecteur SQL Server (\texttt{pyodbc}) charge les colonnes s\'{e}lectionn\'{e}es depuis la table source. Un param\`{e}tre \texttt{row\_limit} permet de travailler sur un \'{e}chantillon (10\,000 enregistr\'{e}ments pour les exp\'{e}riences).
+
+\subsection{\'{E}tape 2 : nettoyage}
+
+Le nettoyage applique des transformations g\'{e}n\'{e}riques :
+\begin{itemize}
+    \item Trim des espaces en d\'{e}but/fin
+    \item Normalisation des valeurs NULL (chaines vides, ``NULL'', ``N/A'')
+    \item Suppression des caract\`{e}res de contr\^{o}le
+    \item D\'{e}duplication exacte des lignes identiques
+\end{itemize}
+
+\subsection{\'{E}tape 3 : normalisation}
+
+La normalisation est sp\'{e}cifique au domaine marocain :
+
+\begin{table}[H]
+\centering
+\caption{R\`{e}gles de normalisation du champ RC}
 \renewcommand{\arraystretch}{1.3}
 \begin{tabular}{|p{4cm}|p{4cm}|p{5cm}|}
 \hline
-\textbf{Corruption} & \textbf{Avant} & \textbf{Après nettoyage} \\
+\textbf{Corruption} & \textbf{Avant} & \textbf{Apr\`{e}s} \\
 \hline
-Préfixe \texttt{RC/} & \texttt{RC/040178} & \texttt{040178} \\
+Pr\'{e}fixe \texttt{RC/} & \texttt{RC/040178} & \texttt{040178} \\
 \hline
 Espaces internes & \texttt{040 178} & \texttt{040178} \\
 \hline
@@ -26,554 +141,426 @@ Tirets & \texttt{040-178} & \texttt{040178} \\
 \hline
 Majuscules/minuscules & \texttt{rc/040178} & \texttt{040178} \\
 \hline
-Espaces en début/fin & \texttt{\ 040178\ } & \texttt{040178} \\
-\hline
-Valeur NULL & NULL & NULL (conservé) \\
-\hline
 \end{tabular}
 \end{table}
 
-\noindent Le RC nettoyé est stocké dans une colonne \texttt{RC\_CLEAN} utilisée par le pipeline. La colonne originale \texttt{RC} est conservée intacte.
+Pour \texttt{RAISON\_SOCIALE} : conversion majuscules, suppression accents, ponctuation, suffixes (MAROC). La strat\'{e}gie hybride \texttt{\_R} / dirty est appliqu\'{e}e : si \texttt{\_R} non-NULL, utiliser \texttt{\_R} ; sinon, utiliser la valeur nettoy\'{e}e.
 
-\subsection{Nettoyage du champ \texttt{RAISON\_SOCIALE}}
+\subsection{\'{E}tape 4 : Splink --- Fellegi-Sunter + EM}
 
+\subsubsection{Cr\'{e}ation du linker}
+
+Le linker Splink est initialis\'{e} avec DuckDB comme backend SQL. Les comparaisons d\'{e}finies comprennent :
 \begin{itemize}
-    \item Conversion en majuscules
-    \item Suppression des accents et caractères spéciaux (\texttt{É} $\rightarrow$ \texttt{E}, \texttt{Ç} $\rightarrow$ \texttt{C})
-    \item Suppression de la ponctuation (\texttt{S.A.R.L.} $\rightarrow$ \texttt{SARL})
-    \item Normalisation des espaces multiples
-    \item Suppression des suffixes redondants (\texttt{MAROC}, \texttt{MOROCCO}) en fin de chaîne
+    \item \textbf{RC} : JaroWinkler avec seuils 0,95 / 0,80
+    \item \textbf{RAISON\_SOCIALE\_R} : JaroWinkler avec seuils 0,95 / 0,88 / 0,80
+    \item \textbf{RAISON\_SOCIALE} : JaroWinkler avec seuils 0,92 / 0,80 / 0,70
+    \item \textbf{DONNEUR\_ORDRE} : JaroWinkler avec seuils 0,90 / 0,75
+    \item \textbf{CODE\_BANQUE\_BAM, GUICHET, CENTRE\_R, VILLE} : ExactMatch
 \end{itemize}
 
-\subsection{Nettoyage du champ \texttt{DONNEUR\_ORDRE}}
+\subsubsection{Entra\^{i}nement EM}
 
-Les mêmes transformations que \texttt{RAISON\_SOCIALE} sont appliquées. Le \texttt{DONNEUR\_ORDRE} étant instable (50\,\% d'alias différents), il est utilisé comme signal secondaire uniquement.
+Trois sessions d'entra\^{i}nement rotatives estiment les param\`{e}tres $m_k$ et $u_k$ sans donn\'{e}es labellis\'{e}es. Un champ utilis\'{e} dans le blocage d'une session ne peut pas '\^{e}tre entra\^{i}n\'{e} dans cette m\^{e}me session.
 
-\subsection{Stratégie hybride \texttt{\_R} / dirty}
+\subsubsection{Pr\'{e}diction et veto RC}
 
-Pour chaque champ, la logique de sélection est :
+Apr\`{e}s entra\^{i}nement, le score de match est calcul\'{e} pour toutes les paires candidates. Le veto RC est appliqu\'{e} en post-traitement : toute paire avec des RC diff\'{e}rents (non-nuls) est rejet\'{e}e.
 
-\begin{enumerate}
-    \item Si la colonne \texttt{\_R} est non-NULL $\rightarrow$ utiliser la valeur \texttt{\_R} (vérifiée OdC)
-    \item Sinon $\rightarrow$ utiliser la valeur nettoyée du champ bruité
-\end{enumerate}
+\subsection{\'{E}tapes 5-6 : d\'{e}cisions de paires et embeddings}
 
-Cette stratégie est essentielle pour les anciens enregistrements qui n'ont pas de colonnes \texttt{\_R} renseignées.
+Les paires avec un score $\geq$ seuil sont accept\'{e}es comme matches. Les paires avec un score entre 0,5 et le seuil peuvent '\^{e}tre enrichies par des similarit\'{e}s d'embeddings neuronaux (mod\`{e}le \texttt{multilingual-e5-small}, 384 dimensions).
 
-\section{Couche 2 — Entity Resolution avec Splink}
+\subsection{\'{E}tape 7 : clustering}
 
-\subsection{Présentation de Splink}
-
-\textbf{Splink} est une bibliothèque Python open-source développée par le Ministère de la Justice britannique, utilisée en production pour relier des millions de dossiers judiciaires. Elle implémente le \textbf{modèle probabiliste de Fellegi-Sunter} (1969) avec l'algorithme \textbf{Expectation-Maximisation (EM)} pour apprendre les paramètres sans données labellisées.
-
-Pour chaque paire de déclarations $(A, B)$, Splink calcule un \textbf{poids de match} :
-$$\text{match\_weight} = \sum_{i} \log_2\left(\frac{m_i}{u_i}\right)$$
-
-où $m_i = P(\text{accord sur champ } i \mid \text{même opérateur})$ et $u_i = P(\text{accord par hasard} \mid \text{opérateurs différents})$.
-
-\begin{table}[H]
-\centering
-\caption{Exemple de calcul de poids de match Fellegi-Sunter}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|l|c|c|c|c|}
-\hline
-\textbf{Champ} & \textbf{Accord ?} & \textbf{m} & \textbf{u} & \textbf{Poids} \\
-\hline
-RC exact & Oui & 0,92 & 0,001 & +9,8 \\
-\hline
-RAISON\_SOCIALE JW $\geq$ 0,92 & Oui & 0,85 & 0,05 & +4,1 \\
-\hline
-CODE\_BANQUE\_BAM & Oui & 0,95 & 0,08 & +3,6 \\
-\hline
-VILLE & Non & 0,05 & 0,40 & $-$3,1 \\
-\hline
-\textbf{Total} & & & & \textbf{+14,4 $\rightarrow$ MATCH} \\
-\hline
-\end{tabular}
-\end{table}
-
-\subsection{Étape 1 — Le Blocage}
-
-Le blocage réduit les $\sim$5 milliards de paires possibles à quelques millions de paires candidates. Les 7 règles retenues, après analyse de la cardinalité des champs, sont :
-
-\begin{enumerate}
-    \item \texttt{block\_on('RC')} — RC dirty, haute cardinalité, 70\,\% propre
-    \item \texttt{block\_on('RC\_R')} — RC canonique OdC, 0\,\% bruit
-    \item \texttt{block\_on('CODE\_BANQUE\_BAM', 'substr(RS\_R,1,8)')} — même banque + début nom canonique
-    \item \texttt{block\_on('CODE\_BANQUE\_BAM', 'substr(RS,1,8)')} — fallback anciens records sans \_R
-    \item \texttt{block\_on('CENTRE\_R', 'CODE\_OPERATION\_R')} — $108 \times 1\,452$ combinaisons, très sélectif
-    \item \texttt{block\_on('CODE\_GUICHET\_BAM', 'substr(RS\_R,1,6)')} — même agence + début nom
-    \item \texttt{block\_on('VILLE', 'substr(RS,1,6)')} — fallback géographique pour anciens records
-\end{enumerate}
-
-\noindent\textbf{Règle supprimée :} \texttt{CODE\_BANQUE\_BAM + ANNEE + SENS} — 3 champs à très faible cardinalité ($35 \times 5 \times 2$) générant un méga-cluster de 32\,000 enregistrements.
-
-\subsection{Étape 2 — Les Comparaisons}
-
-Pour chaque paire candidate, Splink calcule des scores de similarité champ par champ :
+Deux strat\'{e}gies de clustering sont impl\'{e}ment\'{e}es :
 
 \begin{itemize}
-    \item \textbf{RC} : JaroWinkler avec seuils 0,95 et 0,80 — gère les variantes de format (\texttt{RC/040178} $\leftrightarrow$ \texttt{040178} : score 0,94)
-    \item \textbf{RAISON\_SOCIALE\_R} : JaroWinkler avec seuils 0,95 / 0,88 / 0,80 — seuils stricts car OdC-vérifié
-    \item \textbf{RAISON\_SOCIALE} : JaroWinkler avec seuils 0,92 / 0,80 / 0,70 — seuils permissifs pour absorber le bruit
-    \item \textbf{DONNEUR\_ORDRE} : JaroWinkler avec seuils 0,90 / 0,75 — signal secondaire (50\,\% d'alias)
-    \item \textbf{CODE\_BANQUE\_BAM}, \textbf{CODE\_GUICHET\_BAM}, \textbf{CENTRE\_R}, \textbf{SENS}, \textbf{VILLE} : ExactMatch
+    \item \textbf{Composantes connexes} : simple, d\'{e}terministe, rapide. Chaque composante connexe du graphe de matches devient un cluster.
+    \item \textbf{Leiden} : algorithme de d\'{e}tection de communaut\'{e}s (igraph + leidenalg). Param\`{e}tres : r\'{e}solution (granularit\'{e}), nombre de voisins k-NN, m\'{e}trique de distance.
 \end{itemize}
 
-\subsection{Étape 3 — Entraînement EM sans labels}
+\subsection{\'{E}tape 8 : mat\'{e}rialisation des entit\'{e}s}
 
-L'algorithme EM apprend les paramètres $m$ et $u$ sans données labellisées. Trois sessions d'entraînement sont nécessaires pour couvrir tous les champs (un champ utilisé dans le blocage d'une session ne peut pas être entraîné dans cette même session) :
-
-\begin{table}[H]
-\centering
-\caption{Sessions d'entraînement EM — rotation des champs}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|c|l|l|}
-\hline
-\textbf{Session} & \textbf{Blocking sur} & \textbf{Champs entraînés} \\
-\hline
-1 & \texttt{RC\_R} & RC, RAISON\_SOCIALE, DONNEUR\_ORDRE, BAM, VILLE \\
-\hline
-2 & \texttt{CODE\_BANQUE\_BAM + substr(RS, 1, 5)} & RAISON\_SOCIALE\_R, CENTRE\_R \\
-\hline
-3 & \texttt{CENTRE\_R + SENS} & CODE\_BANQUE\_BAM, CODE\_GUICHET\_BAM \\
-\hline
-\end{tabular}
-\end{table}
-
-\subsection{Étape 4 — Prédiction et filtre de veto RC}
-
-Après entraînement, Splink génère des scores de match pour toutes les paires candidates. Le filtre de veto RC est appliqué en post-traitement :
-
-\begin{center}
-\textit{Si $RC_i \neq \emptyset$ et $RC_j \neq \emptyset$ et $RC_i \neq RC_j$ $\Rightarrow$ supprimer la paire, quelle que soit la probabilité de match.}
-\end{center}
-
-Ce filtre élimine les fusions impossibles entre entreprises ayant des RC différents mais des noms similaires (ex : \texttt{MARTIN SA} et \texttt{MARTIN SARL} avec des RC distincts).
-
-\subsection{Étape 5 — Clustering et sweep de seuil}
-
-Les paires validées sont regroupées en clusters par transitivité (composantes connexes du graphe de matches). Le seuil optimal est déterminé par un sweep systématique :
-
-\begin{table}[H]
-\centering
-\caption{Résultats du sweep de seuil — Splink seul}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|c|c|c|c|c|c|}
-\hline
-\textbf{Seuil} & \textbf{Clusters} & \textbf{Précision} & \textbf{Recall} & \textbf{F1} & \textbf{Méga-clusters} \\
-\hline
-0,70 & 672 & 67,2\,\% & 100\,\% & 73,5\,\% & 4 \\
-\hline
-0,80 & 700 & 70,0\,\% & 100\,\% & 76,1\,\% & 2 \\
-\hline
-0,90 & 722 & 72,2\,\% & 100\,\% & 78,2\,\% & 2 \\
-\hline
-\textbf{0,95} & \textbf{727} & \textbf{72,7\,\%} & \textbf{100\,\%} & \textbf{78,6\,\%} & \textbf{2} \\
-\hline
-\end{tabular}
-\end{table}
-
-\noindent Le seuil optimal retenu est \textbf{0,95}. Le recall de 100\,\% signifie que Splink ne rate aucun vrai match. La précision de 72,7\,\% indique que 27,3\,\% des clusters contiennent encore 2+ entreprises différentes — c'est le problème que XGBoost résout.
-
-\section{Couche 3 — Classification ML avec XGBoost}
-
-\subsection{Pourquoi XGBoost après Splink ?}
-
-Splink est excellent pour la similarité textuelle mais ne voit pas les \textbf{patterns comportementaux} des opérateurs. Les cas difficiles sont :
+Chaque cluster est transform\'{e} en une entit\'{e} canonique :
 \begin{itemize}
-    \item RC null des deux côtés + noms courts génériques (\texttt{MARTIN}, \texttt{PARIS})
-    \item Même préfixe de nom mais entreprises différentes (\texttt{MARTIN SA} vs \texttt{MARTIN SARL})
-    \item Entreprises du même secteur, même banque, même ville — mais entités distinctes
+    \item \textbf{ID stable} : \texttt{ENT-\{run\_id\}-\{seq:06d\}}
+    \item \textbf{Attributs canoniques} : RC, nom, banque, guichet extraits par vote majoritaire
+    \item \textbf{Statut} : \texttt{auto\_approved} ($\geq$0,95), \texttt{review} (0,3--0,95), \texttt{flagged} (<0,3 ou >50 membres)
 \end{itemize}
 
-XGBoost exploite des \textbf{features comportementales} agrégées par opérateur pour discriminer ces cas.
+\section{Architecture du worker Python}
 
-\subsection{Construction des features}
+Le worker est une application FastAPI ex\'{e}cutant le pipeline dans un thread s\'{e}par\'{e}.
 
-Pour chaque paire de déclarations $(A, B)$ produite par Splink, un vecteur de features est calculé :
+\begin{figure}[H]
+\centering
+\small
+\begin{tikzpicture}[
+  node distance=0.6cm,
+  module/.style={rectangle, rounded corners=3pt, draw=black, thick, minimum width=2.8cm, minimum height=0.8cm, align=center, font=\scriptsize},
+  mcore/.style={module, fill=violet!12},
+  mdata/.style={module, fill=blue!12},
+  mer/.style={module, fill=orange!12},
+  mcluster/.style={module, fill=teal!12},
+  mentity/.style={module, fill=green!12},
+  arr/.style={-{Latex[length=2mm]}, thick}
+]
+
+\node[mcore] (orch) {Orchestrator\\[-2pt]\footnotesize pipeline/orchestrator.py};
+\node[mdata, below left=0.8cm and 1cm of orch] (load) {Data Loading\\[-2pt]\footnotesize data/loading.py};
+\node[mdata, below=of load] (norm) {Normalization\\[-2pt]\footnotesize data/normalization.py};
+\node[mer, below right=0.8cm and 1cm of orch] (splink) {Splink Engine\\[-2pt]\footnotesize er\_splink/};
+\node[mcluster, below=of splink] (clust) {Clustering\\[-2pt]\footnotesize clustering/ + embedding/};
+\node[mentity, below=0.8cm of norm] (mat) {Materializer\\[-2pt]\footnotesize entities/};
+\node[mcore, below=0.8cm of clust] (ctx) {Context + Logs\\[-2pt]\footnotesize pipeline/context.py};
+
+\draw[arr] (orch) -- (load);
+\draw[arr] (orch) -- (splink);
+\draw[arr] (load) -- (norm);
+\draw[arr] (norm) -- (splink);
+\draw[arr] (splink) -- (clust);
+\draw[arr] (clust) -- (mat);
+\draw[arr] (mat) -- (ctx);
+
+\end{tikzpicture}
+\caption{Modules du worker Python}
+\label{fig:worker-modules}
+\end{figure}
 
 \begin{table}[H]
 \centering
-\caption{Features du classificateur XGBoost}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|p{4cm}|p{9cm}|}
-\hline
-\textbf{Feature} & \textbf{Description} \\
-\hline
-\texttt{splink\_score} & Probabilité de match Splink — feature la plus importante \\
-\hline
-\texttt{jw\_rc} & JaroWinkler(\texttt{RC\_l}, \texttt{RC\_r}) \\
-\hline
-\texttt{jw\_rs} & JaroWinkler(\texttt{RAISON\_SOCIALE\_norm\_l}, \texttt{RAISON\_SOCIALE\_norm\_r}) \\
-\hline
-\texttt{jw\_do} & JaroWinkler(\texttt{DONNEUR\_ORDRE\_l}, \texttt{DONNEUR\_ORDRE\_r}) \\
-\hline
-\texttt{exact\_bam} & \texttt{CODE\_BANQUE\_BAM\_l} == \texttt{CODE\_BANQUE\_BAM\_r} \\
-\hline
-\texttt{exact\_centre} & \texttt{CENTRE\_R\_l} == \texttt{CENTRE\_R\_r} \\
-\hline
-\texttt{montant\_ratio} & $\frac{\text{mean\_MONTANT\_DHS}_A}{\text{mean\_MONTANT\_DHS}_B}$ — ratio des montants moyens \\
-\hline
-\texttt{same\_top\_country} & Même pays partenaire le plus fréquent \\
-\hline
-\texttt{same\_top\_operation} & Même code opération le plus fréquent \\
-\hline
-\texttt{ratio\_import\_export} & Ratio SENS=1 / SENS=2 par opérateur \\
-\hline
-\texttt{rc\_null\_both} & Les deux RC sont NULL (cas difficile) \\
-\hline
-\end{tabular}
-\end{table}
-
-\subsection{Entraînement et évaluation}
-
-\begin{itemize}
-    \item \textbf{Labels} : issus de \texttt{ground\_truth.csv} — même \texttt{company\_id} $\rightarrow$ MATCH (1), sinon NON-MATCH (0)
-    \item \textbf{Modèle} : \texttt{XGBClassifier(n\_estimators=300, max\_depth=6, learning\_rate=0.05)}
-    \item \textbf{Validation} : train/test split 80/20, stratifié sur le label
-    \item \textbf{Gestion du déséquilibre} : les non-matches sont bien plus nombreux que les matches — paramètre \texttt{scale\_pos\_weight} ajusté
-\end{itemize}
-
-\begin{table}[H]
-\centering
-\caption{Comparaison des approches — résultats attendus}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|l|c|c|c|}
-\hline
-\textbf{Approche} & \textbf{Précision} & \textbf{Recall} & \textbf{F1} \\
-\hline
-Splink seul (baseline) & 40,8\,\% & 99,9\,\% & 46,1\,\% \\
-\hline
-Splink v2 (blocage corrigé + veto RC) & 72,7\,\% & 100\,\% & 78,6\,\% \\
-\hline
-\textbf{Splink v2 + XGBoost} & \textbf{85--90\,\%} & \textbf{$\sim$95\,\%} & \textbf{$\sim$89\,\%} \\
-\hline
-\end{tabular}
-\end{table}
-
-\section{Pipeline Incrémental}
-
-\subsection{Principe}
-
-Le mode incrémental permet de traiter les \textbf{nouvelles déclarations au fil de l'eau} sans retraiter l'historique complet. C'est essentiel en production où l'OdC reçoit de nouvelles déclarations de manière décadaire.
-
-\subsection{Architecture incrémentale}
-
-\begin{enumerate}
-    \item \textbf{Détection des nouveaux enregistrements} : identification des déclarations dont \texttt{DATE\_CREATE} est postérieure au dernier traitement, via la colonne \texttt{ID\_FORMULE} (auto-incrémentée).
-    \item \textbf{Nettoyage incrémental} : application de la couche de nettoyage uniquement sur les nouveaux enregistrements.
-    \item \textbf{Blocage hybride} : les nouveaux enregistrements sont comparés (a) entre eux et (b) contre les enregistrements historiques déjà clusterisés, via les mêmes règles de blocage.
-    \item \textbf{Prédiction Splink} : génération des scores de match pour les nouvelles paires candidates uniquement.
-    \item \textbf{Mise à jour des clusters} : les nouveaux enregistrements sont rattachés aux clusters existants si le score dépasse le seuil, ou créent de nouveaux clusters.
-    \item \textbf{Classification XGBoost} : les cas ambigus (score Splink entre 0,5 et 0,95) sont soumis au classificateur XGBoost.
-    \item \textbf{Persistance} : les clusters mis à jour sont sauvegardés dans la table \texttt{RFF.entity\_clusters}.
-\end{enumerate}
-
-\subsection{Table de persistance des clusters}
-
-\begin{table}[H]
-\centering
-\caption{Structure de la table \texttt{RFF.entity\_clusters}}
+\caption{Modules du worker Python et leurs r\^{o}les}
 \renewcommand{\arraystretch}{1.3}
 \begin{tabular}{|l|l|p{7cm}|}
 \hline
-\textbf{Colonne} & \textbf{Type} & \textbf{Description} \\
+\textbf{Module} & \textbf{Fichier} & \textbf{R\^{o}le} \\
 \hline
-\texttt{ID\_FORMULE} & INT & FK vers \texttt{formule\_P\_clean} \\
+Orchestrateur & \texttt{pipeline/orchestrator.py} & Coordonne les 9 \'{e}tapes, g\`{e}re le contexte d'ex\'{e}cution \\
 \hline
-\texttt{CLUSTER\_ID} & INT & Identifiant du cluster d'opérateur \\
+Chargement & \texttt{data/loading.py} & Lecture SQL Server (pyodbc), \'{e}criture de la table de sortie \\
 \hline
-\texttt{CANONICAL\_RC} & NVARCHAR(20) & RC canonique du cluster \\
+Normalisation & \texttt{data/normalization.py} & Nettoyage + normalisation sp\'{e}cifique au domaine \\
 \hline
-\texttt{CANONICAL\_NAME} & NVARCHAR(255) & Nom canonique du cluster \\
+Splink Trainer & \texttt{er\_splink/trainer.py} & Cr\'{e}ation du linker, estimation EM \\
 \hline
-\texttt{MATCH\_SCORE} & FLOAT & Score Splink ayant conduit au rattachement \\
+Splink Predictor & \texttt{er\_splink/predictor.py} & G\'{e}n\'{e}ration des scores de match \\
 \hline
-\texttt{DATE\_CLUSTER} & DATETIME & Date de création/mise à jour du cluster \\
+Blocking & \texttt{er\_splink/blocking.py} & Construction des r\`{e}gles de blocage, comparateurs \\
 \hline
-\texttt{SOURCE} & NVARCHAR(10) & \texttt{SPLINK} ou \texttt{XGBOOST} \\
+Clustering & \texttt{clustering/clusterer.py} & Composantes connexes (NetworkX) \\
+\hline
+Embeddings & \texttt{embedding/clustering.py} & Embeddings neuronaux, similarit\'{e} cosinus, Leiden \\
+\hline
+Mat\'{e}rialisation & \texttt{entities/materializer.py} & IDs stables, attributs canoniques, statuts \\
+\hline
+Contexte & \texttt{pipeline/context.py} & Logs en m\'{e}moire, m\'{e}triques, rapport d'ex\'{e}cution \\
+\hline
+Sch\'{e}mas & \texttt{models/schemas.py} & Mod\`{e}les Pydantic : \texttt{PipelineRequest}, \texttt{PipelineResult}, configs \\
 \hline
 \end{tabular}
 \end{table}
 
-\section{Architecture Globale du Pipeline}
+\section{L'architectructure du serveur API}
 
-\definecolor{l1blue}{HTML}{2F5FA8}
-\definecolor{l2violet}{HTML}{6A3DA8}
-\definecolor{l3green}{HTML}{2E8B57}
-\tikzset{
-  plio/.style={rectangle, rounded corners=3pt, draw=black, very thick,
-    fill=black!78, text=white, font=\bfseries\footnotesize,
-    align=center, text width=6cm, inner sep=6pt},
-  pllayer1/.style={rectangle, rounded corners=3pt, draw=l1blue, thick,
-    fill=l1blue!10, text=black, font=\footnotesize, align=left,
-    text width=6cm, inner sep=6pt},
-  pllayer2/.style={rectangle, rounded corners=3pt, draw=l2violet, thick,
-    fill=l2violet!10, text=black, font=\footnotesize, align=left,
-    text width=6.6cm, inner sep=6pt},
-  pllayer3/.style={rectangle, rounded corners=3pt, draw=l3green, thick,
-    fill=l3green!10, text=black, font=\footnotesize, align=left,
-    text width=7cm, inner sep=6pt},
-  pldecision/.style={diamond, draw=black, thick, fill=yellow!12, aspect=2.4,
-    font=\bfseries\footnotesize, align=center, text width=2.6cm, inner sep=2pt},
-  placcept/.style={rectangle, rounded corners=3pt, draw=teal!65!black, very thick,
-    fill=teal!12, font=\bfseries\footnotesize, align=center,
-    text width=3.6cm, inner sep=6pt},
-  plreject/.style={rectangle, rounded corners=3pt, draw=red!65!black, very thick,
-    fill=red!8, font=\bfseries\footnotesize, align=center,
-    text width=3.2cm, inner sep=6pt},
-  plarr1/.style={-{Latex[length=2.2mm]}, thick, l1blue},
-  plarr2/.style={-{Latex[length=2.2mm]}, thick, l2violet},
-  plarr3/.style={-{Latex[length=2.2mm]}, thick, l3green},
-  placc/.style={-{Latex[length=2.2mm]}, thick, teal!65!black},
-  plrej/.style={-{Latex[length=2.2mm]}, thick, dashed, red!65!black},
-}
+Le serveur Express.js (port 3001) expose 74 endpoints REST. Les routes principales :
+
+\begin{table}[H]
+\centering
+\caption{Principaux endpoints de l'API}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|p{7cm}|}
+\hline
+\textbf{M\'{e}thode} & \textbf{Chemin} & \textbf{Fonction} \\
+\hline
+GET & \texttt{/api/pipelines} & Lister les pipelines \\
+\hline
+POST & \texttt{/api/pipelines} & Cr\'{e}er un pipeline \\
+\hline
+POST & \texttt{/api/pipelines/:id/run} & Ex\'{e}cuter un pipeline \\
+\hline
+GET & \texttt{/api/runs/:id} & D\'{e}tail d'une ex\'{e}cution \\
+\hline
+GET & \texttt{/api/runs/:id/progress} & SSE : suivi en temps r\'{e}el \\
+\hline
+GET & \texttt{/api/entities} & Recherche d'entit\'{e}s (pagin\'{e}) \\
+\hline
+GET & \texttt{/api/entities/:id} & D\'{e}tail d'une entit\'{e} (membres, provenance) \\
+\hline
+GET & \texttt{/api/tables} & D\'{e}couverte des tables (sources externes) \\
+\hline
+POST & \texttt{/api/investigations} & Cr\'{e}er une enqu\^{e}te \\
+\hline
+GET & \texttt{/api/investigations/entities/:id/counterparties} & Analyse des contreparties \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Architecture de la base de donn\'{e}es PostgreSQL}
+
+La base \texttt{ercp} contient 20 tables organis\'{e}es en 4 domaines fonctionnels.
+
+\subsection{Mod\`{e}le UML de la base de donn\'{e}es}
 
 \begin{figure}[H]
 \centering
 \small
-\begin{tikzpicture}[node distance=0.45cm, scale=0.68, every node/.style={transform shape}]
+\begin{tikzpicture}[
+  entity/.style={rectangle, draw=black, thick, minimum width=2.8cm, font=\small\bfseries, fill=blue!8},
+  attr/.style={font=\scriptsize},
+  pk/.style={font=\scriptsize\bfseries},
+  fk/.style={font=\scriptsize, text=blue!60!black},
+  rel/.style={-{Latex[length=2mm]}, thick, black!60},
+  node distance=0.5cm
+]
 
-\node[plio] (n-input) {RFF.formule\_P\_clean --- 100\,000 d\'{e}clarations, 50 colonnes};
+% Users
+\node[entity] (users) at (0,0) {users};
+\node[attr, below=0pt of users, anchor=north, align=left] {
+  \textbf{id} PK\\
+  username\\
+  password\_hash\\
+  role
+};
 
-\node[pllayer1, below=0.65cm of n-input] (n-rc)
-  {\textbf{RC\_CLEAN} --- strip \texttt{"RC/"}, espaces, tirets $\rightarrow$ MAJUSCULES};
-\node[pllayer1, below=of n-rc] (n-rs)
-  {\textbf{RS\_CLEAN} --- suppression accents, ponctuation, suffixe \texttt{MAROC}};
-\node[pllayer1, below=of n-rs] (n-hyb)
-  {\textbf{Strat\'{e}gie hybride} --- \texttt{\_R} non NULL $\rightarrow$ \texttt{\_R}, sinon $\rightarrow$ \texttt{\_CLEAN}};
+% Pipelines
+\node[entity] (pipes) at (5,0) {pipelines};
+\node[attr, below=0pt of pipes, anchor=north, align=left] {
+  \textbf{id} PK\\
+  name\\
+  status\\
+  source\_table\_name\\
+  splink\_config JSONB\\
+  clustering\_config JSONB\\
+  \textit{user\_id} FK
+};
 
-\node[pllayer2, below=0.65cm of n-hyb] (n-bloc)
-  {\textbf{Blocage --- 5 r\`{e}gles :} \texttt{RC\_R} \quad \texttt{RC} \quad \texttt{BAM+SUBSTR(RC\_R,1,6)} \quad \texttt{BAM+SUBSTR(RS\_R,1,8)} \quad \texttt{GUICHET+SUBSTR(RS\_R,1,7)}};
-\node[pllayer2, below=of n-bloc] (n-comp)
-  {\textbf{Comparaisons} --- JaroWinkler(RC, RS, RS\_R) + ExactMatch(BAM, GUICHET)};
-\node[pllayer2, below=of n-comp] (n-em)
-  {\textbf{EM} 2 sessions rotatives \quad \textbf{Veto RC} \quad \textbf{Seuil optimal = 0.80}};
-\node[pllayer2, below=of n-em] (n-clust)
-  {\textbf{Clustering} --- composantes connexes};
+% Pipeline Runs
+\node[entity] (runs) at (10,0) {pipeline\_runs};
+\node[attr, below=0pt of runs, anchor=north, align=left] {
+  \textbf{id} PK\\
+  name\\
+  status\\
+  records\_processed\\
+  matches\_found\\
+  clusters\_created\\
+  \textit{pipeline\_id} FK
+};
 
-\node[pldecision, below=0.85cm of n-clust] (n-dec1)
-  {\texttt{match\_prob} $\geq$ 0.80 ?};
+% Pipeline Steps
+\node[entity] (steps) at (10,-3.5) {pipeline\_steps};
+\node[attr, below=0pt of steps, anchor=north, align=left] {
+  \textbf{id} PK\\
+  step\\
+  status\\
+  records\_in/out\\
+  duration\_seconds\\
+  \textit{run\_id} FK
+};
 
-\node[placcept, right=3.0cm of n-dec1] (n-high)
-  {HAUTE CONFIANCE\\SOURCE = SPLINK};
+% Entities
+\node[entity] (ents) at (5,-4) {entities};
+\node[attr, below=0pt of ents, anchor=north, align=left] {
+  \textbf{id} PK\\
+  entity\_id UNIQUE\\
+  canonical\_rc\\
+  canonical\_name\\
+  record\_count\\
+  status\\
+  \textit{run\_id} FK
+};
 
-\node[pllayer3, below=0.95cm of n-dec1] (n-feat)
-  {\textbf{Features} --- 13 identit\'{e} + 10 comportementales + \texttt{splink\_prob}};
-\node[pllayer3, below=of n-feat] (n-xgb)
-  {\textbf{XGBClassifier} --- n\_estimators=300, max\_depth=5, lr=0.05};
+% Entity Members
+\node[entity] (mems) at (0,-4) {entity\_members};
+\node[attr, below=0pt of mems, anchor=north, align=left] {
+  \textbf{id} PK\\
+  record\_id\\
+  match\_probability\\
+  decision\\
+  source\_data JSONB\\
+  \textit{entity\_id} FK\\
+  \textit{run\_id} FK
+};
 
-\node[plreject, left=3.0cm of n-feat] (n-reject) {NON-MATCH\\REJET\'{E}};
+% Investigations
+\node[entity] (inv) at (0,-8) {investigations};
+\node[attr, below=0pt of inv, anchor=north, align=left] {
+  \textbf{id} PK\\
+  name\\
+  status\\
+  investigation\_type\\
+  \textit{subject\_entity\_id} FK\\
+  \textit{pipeline\_run\_id} FK
+};
 
-\node[pldecision, below=0.85cm of n-xgb] (n-dec2) {MATCH ?};
+% Entity Relationships
+\node[entity] (rel) at (5,-8) {entity\_relationships};
+\node[attr, below=0pt of rel, anchor=north, align=left] {
+  \textbf{id} PK\\
+  relationship\_type\\
+  interaction\_count\\
+  confidence\_score\\
+  \textit{entity\_a\_id} FK\\
+  \textit{entity\_b\_id} FK
+};
 
-\node[plio, below=1.2cm of n-dec2] (n-output)
-  {RFF.entity\_clusters --- ID\_FORMULE, CLUSTER\_ID, CANONICAL\_RC, SOURCE};
+% Run Logs
+\node[entity] (logs) at (10,-7) {run\_logs};
+\node[attr, below=0pt of logs, anchor=north, align=left] {
+  \textbf{id} PK\\
+  stage\\
+  level\\
+  message\\
+  progress\\
+  \textit{run\_id} FK
+};
 
-\draw[plarr1] (n-input) -- (n-rc);
-\draw[plarr1] (n-rc)    -- (n-rs);
-\draw[plarr1] (n-rs)    -- (n-hyb);
-\draw[plarr2] (n-hyb)   -- (n-bloc);
-\draw[plarr2] (n-bloc)  -- (n-comp)
-  node[midway, right, font=\scriptsize, l2violet] {$\sim$5G $\rightarrow$ $\sim$2M paires};
-\draw[plarr2] (n-comp)  -- (n-em);
-\draw[plarr2] (n-em)    -- (n-clust);
-\draw[plarr2] (n-clust) -- (n-dec1);
-\draw[placc]  (n-dec1.east) -- (n-high.west) node[midway, above, font=\scriptsize] {$\geq$ 0.80};
-\draw[plarr3] (n-dec1.south) -- (n-feat.north)
-  node[midway, right, font=\scriptsize] {0.50 $\le$ P $<$ 0.80};
-\draw[plrej]  (n-dec1.west) -- ++(-1.2,0) |- (n-reject.north)
-  node[near start, above, font=\scriptsize] {$<$ 0.50};
-\draw[plarr3] (n-feat)  -- (n-xgb);
-\draw[plarr3] (n-xgb)   -- (n-dec2);
-\draw[plrej]  (n-dec2.west) -- ++(-1.2,0) |- (n-reject.south)
-  node[near start, below, font=\scriptsize] {NON-MATCH};
-\draw[placc]  (n-dec2.east) -- ++(1.4,0) |- ($(n-output.east)+(0,0.3)$)
-  node[near start, above, font=\scriptsize] {MATCH};
-\draw[placc]  (n-high.south) |- ($(n-output.east)+(0,0.6)$);
-
-\fill[l1blue]   ($(n-rc.north west)+(-0.55,0.1)$)  rectangle ($(n-hyb.south west)+(-0.2,-0.1)$);
-\node[rotate=90, text=white, font=\bfseries\scriptsize] at
-  ($(n-rc.north west)!0.5!(n-hyb.south west)+(-0.375,0)$) {L1};
-\fill[l2violet] ($(n-bloc.north west)+(-0.55,0.1)$) rectangle ($(n-clust.south west)+(-0.2,-0.1)$);
-\node[rotate=90, text=white, font=\bfseries\scriptsize] at
-  ($(n-bloc.north west)!0.5!(n-clust.south west)+(-0.375,0)$) {L2 SPLINK};
-\fill[l3green]  ($(n-feat.north west)+(-0.55,0.1)$) rectangle ($(n-xgb.south west)+(-0.2,-0.1)$);
-\node[rotate=90, text=white, font=\bfseries\scriptsize] at
-  ($(n-feat.north west)!0.5!(n-xgb.south west)+(-0.375,0)$) {L3};
+% Relationships
+\draw[rel] (users.south) -- ++(0,-0.3) -| (pipes.north);
+\draw[rel] (pipes.south) -- (runs.north);
+\draw[rel] (runs.south) -- (ents.north);
+\draw[rel] (runs.east) -- (steps.west);
+\draw[rel] (ents.south) -- (mems.north);
+\draw[rel] (ents.south) -- ++(0,-0.3) -| (inv.north);
+\draw[rel] (ents.south) -- ++(0,-0.3) -| (rel.north);
+\draw[rel] (runs.south) -- ++(0,-0.3) -| (logs.north);
 
 \end{tikzpicture}
-\caption{Architecture globale du pipeline d'Entity Resolution \`{a} 3 couches --- Office des Changes}
-\label{fig:er-pipeline}
+\caption{Mod\`{e}le UML de la base de donn\'{e}es PostgreSQL --- 20 tables, 4 domaines fonctionnels}
+\label{fig:uml-schema}
 \end{figure}
 
-\subsection{Sch\'{e}ma de Flux}
+\subsection{Domaines fonctionnels}
 
-\tikzset{
-  inchist/.style={rectangle, rounded corners=3pt, draw=blue!55!black, thick,
-    fill=blue!8, font=\footnotesize, align=center, text width=4.8cm, inner sep=6pt},
-  incnew/.style={rectangle, rounded corners=3pt, draw=orange!70!black, thick,
-    fill=orange!10, font=\footnotesize, align=center, text width=4.8cm, inner sep=6pt},
-  incdec/.style={diamond, draw=black, thick, fill=yellow!10, aspect=2.4,
-    font=\bfseries\footnotesize, align=center, text width=2.7cm, inner sep=2pt},
-  incbblue/.style={rectangle, rounded corners=3pt, draw=blue!55!black, thick,
-    fill=blue!10, font=\footnotesize, align=center, text width=3.6cm, inner sep=6pt},
-  incborange/.style={rectangle, rounded corners=3pt, draw=orange!70!black, thick,
-    fill=orange!12, font=\footnotesize, align=center, text width=3.6cm, inner sep=6pt},
-  incbgray/.style={rectangle, rounded corners=3pt, draw=black!55, thick,
-    fill=black!5, font=\footnotesize, align=center, text width=3.6cm, inner sep=6pt},
-  incout/.style={rectangle, rounded corners=3pt, draw=black!70, very thick,
-    fill=black!8, font=\bfseries\footnotesize, align=center, text width=6.6cm, inner sep=7pt},
-  incnote/.style={rectangle, rounded corners=4pt, draw=black!50, dashed, thick,
-    fill=yellow!8, font=\footnotesize, align=left, text width=13.5cm, inner sep=8pt},
-  arrH/.style={-{Latex[length=2.2mm]}, thick, blue!55!black},
-  arrN/.style={-{Latex[length=2.2mm]}, thick, orange!70!black},
-  arrG/.style={-{Latex[length=2.2mm]}, thick, black!60},
-}
+\begin{table}[H]
+\centering
+\caption{Organisation des tables par domaine fonctionnel}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|p{4cm}|p{7cm}|}
+\hline
+\textbf{Domaine} & \textbf{Tables} & \textbf{R\^{o}le} \\
+\hline
+Pipeline & \texttt{pipelines}, \texttt{pipeline\_runs}, \texttt{pipeline\_steps} & D\'{e}finition, ex\'{e}cution et suivi des pipelines \\
+\hline
+Entit\'{e}s & \texttt{entities}, \texttt{entity\_members}, \texttt{entity\_clusters} & Entit\'{e}s r\'{e}solues, membres, clusters \\
+\hline
+Enqu\^{e}tes & \texttt{investigations}, \texttt{entity\_relationships}, \texttt{investigation\_evidence}, \texttt{investigation\_results}, \texttt{investigation\_notes}, \texttt{investigation\_queries} & Moteur d'enqu\^{e}te et d'analyse \\
+\hline
+Syst\`{e}me & \texttt{users}, \texttt{role\_permissions}, \texttt{settings}, \texttt{audit\_log}, \texttt{scripts}, \texttt{script\_runs}, \texttt{run\_logs}, \texttt{data\_sources} & Authentification, param\`{e}tres, tra\c{c}abilité \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{L'interface op\'{e}rationnelle --- la plateforme}
+
+La plateforme web comprend 17 pages fonctionnelles.
+
+\subsection{Pipeline Wizard --- configuration interactive}
+
+Le Pipeline Wizard guide l'op\'{e}rateur \'{a} travers 8 \'{e}tapes de configuration :
+
+\begin{enumerate}
+    \item \textbf{Load} : s\'{e}lection de la source de donn\'{e}es, sch\'{e}ma et table
+    \item \textbf{Select} : choix des colonnes \`{a} inclure
+    \item \textbf{Clean} : options de nettoyage (trim, NULLs, d\'{e}dup)
+    \item \textbf{Normalize} : r\`{e}gles de normalisation (NFC, format date/t\'{e}l\'{e}phone)
+    \item \textbf{Splink} : type de liaison, blocage, comparaisons, seuil, it\'{e}rations EM
+    \item \textbf{Embeddings} : activation, mod\`{e}le (e5-small/base/large), colonnes textuelles, poids
+    \item \textbf{Cluster} : strat\'{e}gie (CC ou Leiden), seuil d'ar\^{e}te, r\'{e}solution
+    \item \textbf{Finalize} : nom de la table de sortie
+\end{enumerate}
 
 \begin{figure}[H]
 \centering
-\small
-\begin{tikzpicture}[node distance=1.1cm]
-
-\node[inchist] (l1) {Historique\\RFF.formule\_P\_clean};
-\node[inchist, below=of l1] (l2)
-  {Clusters existants\\RFF.entity\_clusters\\
-   \scriptsize(CLUSTER\_ID, CANONICAL\_RC, CANONICAL\_NAME)};
-
-\node[incnew, right=5.5cm of l1] (r1)
-  {Nouvelles déclarations (décadaire)\\
-   \scriptsize détectées via MAX(ID\_FORMULE) $>$ last\_processed};
-\node[incnew, below=of r1] (r2)
-  {Couche nettoyage\\(RC\_CLEAN, RS\_CLEAN)};
-\node[incnew, below=of r2] (r3)
-  {Blocage hybride\\
-   \scriptsize nouvelles $\leftrightarrow$ nouvelles + nouvelles $\leftrightarrow$ historique\\
-   \scriptsize (mêmes 5 règles de blocage)};
-
-\node[incdec] (dec) at ($(l2.south)!0.5!(r3.south)+(0,-2.3)$)
-  {Score Splink\\$\geq$ 0.80 ?};
-
-\node[incbblue,   left=3.4cm of dec]  (yes)  {Rattachement\\au cluster existant};
-\node[incbgray,   below=1.7cm of dec] (amb)  {XGBoost rescore};
-\node[incborange, right=3.4cm of dec] (no)   {Nouveau cluster\\créé};
-
-\node[incout, below=2.3cm of amb] (out)
-  {Mise à jour RFF.entity\_clusters\\
-   SOURCE = SPLINK ou XGBOOST\\
-   DATE\_CLUSTER = NOW()};
-
-\node[incnote, below=1.0cm of out] (note)
-  {\textbf{Note :} le modèle Splink n'est \textbf{PAS} ré-entraîné à chaque batch ---
-   les paramètres $m$ et $u$ appris sur l'historique sont réutilisés.
-   Ré-entraînement complet uniquement si dérive détectée ($>$5\% nouveaux clusters).};
-
-\draw[arrH] (l1) -- (l2)
-  node[midway, right, font=\scriptsize, align=left] {100\,000 déclarations\\$\rightarrow$ $\sim$85\,000 clusters};
-\draw[arrN] (r1) -- (r2)
-  node[midway, right, font=\scriptsize] {batch décadaire ($\sim$500 nouvelles)};
-\draw[arrN] (r2) -- (r3);
-\draw[arrH] (l2.south) -- (dec.north west)
-  node[near start, left, font=\scriptsize, align=right] {clusters\\de référence};
-\draw[arrN] (r3.south) -- (dec.north east)
-  node[near start, right, font=\scriptsize, align=left] {paires\\candidates};
-\draw[arrH] (dec.west) -- (yes.east) node[midway, above, font=\scriptsize] {$\geq$ 0.80};
-\draw[arrG] (dec.south) -- (amb.north)
-  node[midway, right, font=\scriptsize] {0.50 $\le$ P $<$ 0.80 (AMBIGU)};
-\draw[arrN] (dec.east) -- (no.west) node[midway, above, font=\scriptsize] {$<$ 0.50};
-\draw[arrH] (yes.south) |- ($(out.west)+(0,0.5)$);
-\draw[arrG] (amb) -- (out);
-\draw[arrN] (no.south) |- ($(out.east)+(0,0.5)$);
-\draw[-{Latex[length=2mm]}, thick, black!50, dashed] (out.south) -- (note.north);
-
-\end{tikzpicture}
-\caption{Mode de traitement incrémental du pipeline d'Entity Resolution --- Office des Changes}
-\label{fig:er-incremental}
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}\textbf{[Capture d\'{e}cran : Pipeline Wizard]}\vspace{1cm}\\Le Pipeline Wizard affiche les 8 \'{e}tapes de configuration dans un panneau lat\'{e}ral gauche. Chaque \'{e}tape affiche des contr\^{o}les sp\'{e}cifiques : listes d\'{e}roulantes pour les sources, sliders pour les seuils, boutons toggle pour les options binaires.\vspace{2cm}}}
+\caption{Pipeline Wizard --- configuration interactive du pipeline d'Entity Resolution}
+\label{fig:screenshot-wizard}
 \end{figure}
 
-\section{Architecture de Confiance XGBoost --- Zones et Ablation}
+\subsection{Suivi d'ex\'{e}cution en temps r\'{e}el}
+
+Lorsqu'un pipeline est lanc\'{e}, la page de suivi affiche :
+\begin{itemize}
+    \item L'avancement de chaque \'{e}tape (barre de progression)
+    \item Les logs en temps r\'{e}el via SSE (Server-Sent Events)
+    \item Les m\'{e}triques interm\'{e}diaires (nombre de paires, clusters, dur\'{e}e)
+    \item Un bouton d'annulation
+\end{itemize}
 
 \begin{figure}[H]
 \centering
-\small
-\begin{tikzpicture}[scale=0.88, every node/.style={transform shape, font=\small}]
-
-\fill[red!22]    (0,0) rectangle (5,1.4);
-\fill[orange!22] (5,0) rectangle (8,1.4);
-\fill[green!22]  (8,0) rectangle (10,1.4);
-\draw[thick] (0,0) rectangle (10,1.4);
-\draw[thick] (5,0) -- (5,1.4);
-\draw[thick] (8,0) -- (8,1.4);
-
-\node[font=\bfseries\scriptsize, text=red!55!black]    at (2.5,1.85) {\tikz{\fill[red!45] (0,0) rectangle (0.22,0.22);}\ ZONE 1 --- NON-MATCH};
-\node[font=\bfseries\scriptsize, text=orange!70!black] at (6.5,1.85) {\tikz{\fill[orange!45] (0,0) rectangle (0.22,0.22);}\ ZONE 2 --- AMBIGU\"{E}};
-\node[font=\bfseries\scriptsize, text=green!45!black]  at (9.0,1.85) {\tikz{\fill[green!45] (0,0) rectangle (0.22,0.22);}\ ZONE 3};
-
-\node[align=center, font=\footnotesize] at (2.5,0.7) {rejet\'{e} directement\\par Splink};
-\node[align=center, font=\footnotesize] at (6.5,0.7) {soumis \`{a}\\XGBoost};
-\node[align=center, font=\footnotesize] at (9.0,0.7) {accept\'{e}\\directement};
-
-\foreach \x in {0,1,2,3,4,5,6,7,8,9,10}{
-  \draw[thick] (\x,0) -- (\x,-0.15);
-}
-\node[font=\scriptsize] at (0,-0.45)  {0.00};
-\node[font=\scriptsize] at (5,-0.45)  {0.50};
-\node[font=\scriptsize] at (8,-0.45)  {0.80};
-\node[font=\scriptsize] at (10,-0.45) {1.00};
-\node[font=\scriptsize] at (5,-0.8) {\textit{match\_probability (Splink)}};
-
-\node[rectangle, rounded corners=3pt, draw=orange!70!black, thick, fill=orange!8,
-      font=\scriptsize, align=left, text width=9.5cm, inner sep=6pt] at (5,-1.9)
-  {\textbf{Hard positives :} m\^{e}me entreprise, RC corrompu (JW 0.45--0.88)\\[2pt]
-   \textbf{Hard negatives :} entreprises diff\'{e}rentes, RS similaire (JW $\geq$ 0.70)};
-
-\node[font=\bfseries\small] at (5,-3.1) {Comparaison des mod\`{e}les (ablation study) --- score F1};
-
-\node[font=\scriptsize] at (5,-3.55)
-  {\colorbox{blue!20}{\phantom{x}}\,Identity\quad
-   \colorbox{orange!20}{\phantom{x}}\,Behavioral\quad
-   \colorbox{teal!20}{\phantom{x}}\,Id+Beh\quad
-   \colorbox{violet!20}{\phantom{x}}\,Splink only\quad
-   \colorbox{green!35}{\phantom{x}}\,Full (best)};
-
-\node[align=center, font=\scriptsize] at (5,-4.2) {\textbf{Model A} --- Identity only (JW RC, RS, DO, same\_banque, rc\_missing)};
-\fill[blue!20, draw=blue!60!black, thick] (0,-4.55) rectangle (8.7,-4.05);
-\node[font=\scriptsize\bfseries] at (9.2,-4.3) {0.87};
-
-\node[align=center, font=\scriptsize] at (5,-5.2) {\textbf{Model B} --- Behavioral only (same\_devise, same\_op, amount\_ratio, ...)};
-\fill[orange!20, draw=orange!70!black, thick] (0,-5.55) rectangle (7.2,-5.05);
-\node[font=\scriptsize\bfseries] at (7.7,-5.3) {0.72};
-
-\node[align=center, font=\scriptsize] at (5,-6.2) {\textbf{Model C} --- Identity + Behavioral};
-\fill[teal!20, draw=teal!70!black, thick] (0,-6.55) rectangle (9.1,-6.05);
-\node[font=\scriptsize\bfseries] at (9.6,-6.3) {0.91};
-
-\node[align=center, font=\scriptsize] at (5,-7.2) {\textbf{Model D} --- Splink probability only};
-\fill[violet!20, draw=violet!70!black, thick] (0,-7.55) rectangle (6.5,-7.05);
-\node[font=\scriptsize\bfseries] at (7.0,-7.3) {0.65};
-
-\node[align=center, font=\scriptsize] at (5,-8.2) {\textbf{Model E} --- Full system (Identity + Behavioral + Splink prob)};
-\fill[green!35, draw=green!55!black, very thick] (0,-8.55) rectangle (9.3,-8.05);
-\node[font=\scriptsize\bfseries] at (9.9,-8.3) {\textbf{0.93} $\leftarrow$ BEST};
-
-\draw[thick] (0,-9.3) -- (10,-9.3);
-\foreach \x/\lab in {0/0.00,2.5/0.25,5/0.50,7.5/0.75,10/1.00}{
-  \draw[thick] (\x,-9.3) -- (\x,-9.45);
-  \node[font=\scriptsize] at (\x,-9.7) {\lab};
-}
-\node[font=\scriptsize] at (5,-10.0) {\textit{Score F1}};
-
-\node[rectangle, rounded corners=4pt, draw=black!55, thick, fill=yellow!8,
-      font=\footnotesize, align=left, text width=9.5cm, inner sep=8pt] at (5,-11.1)
-  {\textbf{Point cl\'{e} :} XGBoost n'affine que les paires dans la zone ambig\"{u}e 0.50--0.80.
-   Il ne r\'{e}cup\`{e}re pas les faux n\'{e}gatifs de Splink (paires jamais g\'{e}n\'{e}r\'{e}es par le blocage).};
-
-\end{tikzpicture}
-\caption{Architecture de confiance \`{a} trois zones et ablation XGBoost (\texttt{xgboost\_complement.py})}
-\label{fig:xgb-zones}
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}\textbf{[Capture d\'{e}cran : Suivi d'ex\'{e}cution]}\vspace{1cm}\\Le suivi d'ex\'{e}cution affiche les 9 \'{e}tapes avec leurs statuts (pending/running/completed). Un panneau de logs en bas affiche les messages en temps r\'{e}el avec timestamps.\vspace{2cm}}}
+\caption{Suivi d'ex\'{e}cution en temps r\'{e}el --- logs SSE et progression par \'{e}tape}
+\label{fig:screenshot-monitor}
 \end{figure}
+
+\subsection{Exploration des entit\'{e}s}
+
+La page Entit\'{e}s permet de :
+\begin{itemize}
+    \item Filtrer par ex\'{e}cution (s\'{e}lecteur de run)
+    \item Rechercher par nom d'entit\'{e}
+    \item Naviguer vers le d\'{e}tail de chaque entit\'{e} (membres, attributs, activit\'{e})
+    \item Visualiser les 502 entit\'{e}s r\'{e}solues (pagination 200/page)
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}\textbf{[Capture d\'{e}cran : Page Entit\'{e}s]}\vspace{1cm}\\La page affiche une grille d'entit\'{e}s avec leur nom canonique, RC, banque et nombre de membres. Un s\'{e}lecteur d'ex\'{e}cution et une barre de recherche filtrent les r\'{e}sultats.\vspace{2cm}}}
+\caption{Exploration des entit\'{e}s r\'{e}solues --- 502 entit\'{e}s depuis 10\,000 d\'{e}clarations}
+\label{fig:screenshot-entities}
+\end{figure}
+
+\subsection{Moteur d'enqu\^{e}te}
+
+Le moteur d'enqu\^{e}te permet d'analyser les relations entre entit\'{e}s :
+\begin{itemize}
+    \item \textbf{Contreparties} : identification des entit\'{e}s li\'{e}es par des transactions
+    \item \textbf{Chronologie} : \'{e}volution temporelle des activit\'{e}s
+    \item \textbf{Preuves} : sources documentaires soutenant les relations
+    \item \textbf{Notes} : annotations des enqu\^{e}teurs
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}\textbf{[Capture d\'{e}cran : Moteur d'enqu\^{e}te]}\vspace{1cm}\\L'interface d'enqu\^{e}te affiche l'entit\'{e} s\'{e}lectionn\'{e}e, ses contreparties avec scores de confiance, une frise chronologique des transactions, et un panneau de notes.\vspace{2cm}}}
+\caption{Moteur d'enqu\^{e}te --- analyse des relations inter-entit\'{e}s}
+\label{fig:screenshot-investigation}
+\end{figure}
+
+\section{Choix technologiques}
+
+\begin{table}[H]
+\centering
+\caption{Justification des choix technologiques}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|p{7cm}|}
+\hline
+\textbf{Technologie} & \textbf{Utilisation} & \textbf{Justification} \\
+\hline
+Splink 4.0.16 & Entity Resolution & Impl\'{e}mentation production du mod\`{e}le Fellegi-Sunter, open-source, backend DuckDB \\
+\hline
+DuckDB 1.5.5 & Backend SQL & Base embarqu\'{e}e, rapide pour les calculs analytiques, pas de serveur s\'{e}par\'{e} \\
+\hline
+NetworkX & Clustering (CC) & Biblioth\`{e}que standard pour les graphes, composantes connexes en O(V+E) \\
+\hline
+igraph + leidenalg & Clustering (Leiden) & Impl\'{e}mentation rapide de Leiden, 10-100x plus rapide que Louvain \\
+\hline
+sentence-transformers & Embeddings neuronaux & Mod\`{e}les pr\'{e}-entra\^{i}n\'{e}s multilingues, extraction de features s\'{e}mantiques \\
+\hline
+pyodbc & Connecteur SQL Server & Acc\`{e}s aux donn\'{e}es sources MSSQL de l'OdC \\
+\hline
+Drizzle ORM & ORM PostgreSQL & Type-safe, migrations, sch\'{e}ma d\'{e}claratif \\
+\hline
+React + Vite & Frontend & SPA rapide, HMR, \'{e}cosyst\`{e}me mature \\
+\hline
+SSE (Server-Sent Events) & Suivi en temps r\'{e}el & Flux unidirectionnel pour les logs d'ex\'{e}cution, plus l\'{e}ger que WebSocket \\
+\hline
+JWT & Authentification & Standard industry, stateless, scalable \\
+\hline
+\end{tabular}
+\end{table}
 
 \section*{Conclusion}
 
-Ce chapitre a décrit l'architecture complète du pipeline en trois couches. La couche de nettoyage prépare les données, Splink résout la majorité des cas par similarité probabiliste, et XGBoost traite les cas difficiles par apprentissage supervisé sur les signaux comportementaux. Le mode incrémental garantit l'applicabilité en production. Le chapitre suivant présente les résultats quantitatifs et l'évaluation du système.
+Ce chapitre a pr\'{e}sent\'{e} l'impl\'{e}mentation compl\`{e}te de la plateforme : le pipeline d'Entity Resolution \`{a} 9 \'{e}tapes, le worker Python modular, le serveur API \'{a} 74 endpoints, la base de donn\'{e}es PostgreSQL \'{a} 20 tables, et l'interface op\'{e}rationnelle \'{a} 17 pages. L'architectructure resulte directement des d\'{e}cisions prises lors des 18+ exp\'{e}riences document\'{e}es dans le chapitre pr\'{e}c\'{e}dent.

@@ -1,55 +1,65 @@
-\chapter*{Conclusion Générale}
+\chapter*{Conclusion G\'{e}n\'{e}rale}
 \label{chapter:Conclusion}
-\addcontentsline{toc}{chapter}{Conclusion Générale}
+\addcontentsline{toc}{chapter}{Conclusion G\'{e}n\'{e}rale}
 \setcounter{section}{0}
 
-\section{Bilan général}
+\section{Bilan g\'{e}n\'{e}ral}
 
-Au terme de ce projet de fin d'année consacré à l'\textbf{apport de l'Entity Resolution et du Machine Learning dans l'amélioration de la qualité des données des opérateurs de change à l'Office des Changes}, plusieurs enseignements fondamentaux ont pu être dégagés.
+Au terme de ce projet de fin d'ann\'{e}e consacr\'{e} \`{a} l'\textbf{apport de l'Entity Resolution et du Machine Learning dans l'am\'{e}lioration de la qualit\'{e} des donn\'{e}es des op\'{e}rateurs de change \`{a} l'Office des Changes}, plusieurs enseignements fondamentaux ont pu '\^{e}tre d\'{e}gag\'{e}s.
 
-Ce rapport a permis, dans un premier temps, de présenter le cadre institutionnel de l'Office des Changes, dont la stratégie 2025--2029 place la digitalisation et le contrôle intelligent au cœur de ses ambitions. Dans un second temps, l'analyse approfondie de la table \texttt{RFF.formule\_P\_clean} — avec ses 50 colonnes, son architecture duale dirty/\_R, et ses cinq tables de référence réelles — a mis en lumière la problématique structurelle de fragmentation de l'identité des opérateurs économiques. Dans un troisième temps, la conception et l'implémentation du pipeline en trois couches ont démontré la faisabilité technique d'une solution automatisée. Enfin, l'évaluation rigoureuse sur données synthétiques a établi la maturité du système pour une mise en production progressive.
+Ce rapport a permis, dans un premier temps, de pr\'{e}senter le cadre institutionnel de l'Office des Changes, dont la strat\'{e}gie 2025--2029 place la digitalisation et le contr\^{o}le intelligent au c\oe{}ur de ses ambitions. Dans un second temps, l'analyse approfondie de la table \texttt{RFF.formule\_P\_clean} --- avec ses 50 colonnes, son architecture duale dirty/\_R, et ses cinq tables de r\'{e}f\'{e}rence r\'{e}elles --- a mis en lumi\`{e}re la probl\'{e}matique structurelle de fragmentation de l'identit\'{e} des op\'{e}rateurs \'{e}conomiques. Dans un trois\`{e}me temps, la documentation du parcours exp\'{e}rimental (18+ exp\'{e}riences) a d\'{e}montr\'{e} que l'architecture finale est le r\'{e}sultat d'une investigation syst\'{e}matique et non d'un choix initial. Enfin, l'impl\'{e}mentation de la plateforme compl\`{e}te --- pipeline \`{a} 9 \'{e}tapes, serveur API, base de donn\'{e}es, interface op\'{e}rationnelle --- a valid\'{e} la faisabilit\'{e} technique d'une solution automatis\'{e}e.
 
-\section{Réponse à la Problématique}
+\section{R\'{e}ponse \`{a} La Probl\'{e}matique}
 
-Le pipeline développé répond à la problématique posée à travers quatre contributions concrètes :
+Le pipeline d\'{e}velopp\'{e} r\'{e}pond \`{a} la probl\'{e}matique pos\'{e}e \`{a} travers cinq contributions concr\`{e}tes :
 
 \begin{itemize}
-    \item \textbf{Nettoyage systématique} : normalisation des champs \texttt{RC}, \texttt{RAISON\_SOCIALE} et \texttt{DONNEUR\_ORDRE} avant tout traitement, avec stratégie hybride \_R / dirty pour couvrir les anciens enregistrements.
-    \item \textbf{Entity Resolution probabiliste} : Splink avec 7 règles de blocage hybrides, modèle Fellegi-Sunter entraîné par EM en 3 sessions rotatives, filtre de veto RC, et sweep de seuil — atteignant 100\,\% de recall et 72,7\,\% de précision.
-    \item \textbf{Classification ML} : XGBoost sur les cas difficiles, exploitant les signaux comportementaux des opérateurs (montants, pays, opérations) pour améliorer la précision à 85--90\,\%.
-    \item \textbf{Mode incrémental} : architecture permettant le traitement des nouvelles déclarations au fil de l'eau, sans retraitement de l'historique complet.
+    \item \textbf{Nettoyage syst\'{e}matique} : normalisation des champs \texttt{RC}, \texttt{RAISON\_SOCIALE} et \texttt{DONNEUR\_ORDRE} avant tout traitement, avec strat\'{e}gie hybride \_R / dirty.
+    \item \textbf{Entity Resolution probabiliste} : Splink avec 7 r\`{e}gles de blocage hybrides, mod\`{e}le Fellegi-Sunter entra\^{i}n\'{e} par EM en 3 sessions rotatives, filtre de veto RC.
+    \item \textbf{Clustering non supervis\'{e} } : composantes connexes et algorithme de Leiden, sans n\'{e}cessit\'{e} de donn\'{e}es labellis\'{e}es.
+    \item \textbf{Embeddings neuronaux} : mod\`{e}le multilingual-e5-small pour enrichir la similarit\'{e} des paires candidates.
+    \item \textbf{Plateforme op\'{e}rationnelle} : interface web compl\`{e}te avec 17 pages, 74 endpoints API, base de donn\'{e}es PostgreSQL \`{a} 20 tables.
+\end{itemize}
+
+\section{Parcours exp\'{e}rimental}
+
+La d\'{e}marche exp\'{e}rimentale constitue la contribution la plus importante de ce projet. Les 18+ exp\'{e}riences r\'{e}alis\'{e}es ont d\'{e}montr\'{e} que :
+
+\begin{itemize}
+    \item Les approches d\'{e}terministes sont insuffisantes pour le bruit r\'{e}el.
+    \item Les mod\`{e}les supervis\'{e}s (XGBoost, LightGBM, CatBoost) atteignent une performance parfaite en validation crois\'{e}e mais \textbf{0\,\% de pr\'{e}cision} sur des donn\'{e}es ind\'{e}pendantes --- ils apprennent des r\`{e}gles triviales.
+    \item Le clustering non supervis\'{e} (TF-IDF + Leiden) produit des r\'{e}sultats interpr\'{e}tables sans donn\'{e}es labellis\'{e}es.
+    \item La qualit\'{e} du blocage est plus importante que la complexit\'{e} du mod\`{e}le.
 \end{itemize}
 
 \section{Limites et Perspectives}
 
 \subsection*{Limites actuelles}
 
-L'\textbf{absence de validation sur données réelles} constitue la limite principale. Le benchmark synthétique, aussi réaliste soit-il, ne peut pas capturer toutes les spécificités des données historiques de l'OdC. Le seuil optimal de 0,95 devra être recalibré sur données réelles, idéalement avec un échantillon labellisé manuellement par les experts métier.
+L'\textbf{absence de validation sur donn\'{e}es r\'{e}elles} constitue la limite principale. Le benchmark synth\'{e}tique, aussi r\'{e}aliste soit-il, ne peut pas capturer toutes les sp\'{e}cificit\'{e}s des donn\'{e}es historiques de l'OdC. Une validation compl\'{e}mentaire sur un \'{e}chantillon r\'{e}el annot\'{e} manuellement (500--2\,000 paires) serait n\'{e}cessaire.
 
-La \textbf{précision de 72,7\,\%} avec Splink seul, bien qu'améliorable avec XGBoost, indique que 27,3\,\% des clusters contiennent encore des entreprises différentes. Ces cas difficiles — noms courts et génériques, RC null des deux côtés — nécessitent des signaux comportementaux que seul XGBoost peut exploiter.
-
-\subsection*{Perspectives à court terme}
+\subsection*{Perspectives \`{a} court terme}
 \begin{itemize}
-    \item Validation du pipeline sur un échantillon de données réelles avec revue manuelle des clusters par les experts métier.
-    \item Finalisation et évaluation de la couche XGBoost sur les données synthétiques.
-    \item Intégration du pipeline dans le processus de chargement décadaire des déclarations.
+    \item Validation du pipeline sur un \'{e}chantillon de donn\'{e}es r\'{e}elles avec revue manuelle des clusters par les experts m\'{e}tier.
+    \item Optimisation des performances pour le traitement de 2\,500\,000 d\'{e}clarations.
+    \item Int\'{e}gration du pipeline dans le processus de chargement d\'{e}cadeire des d\'{e}clarations.
 \end{itemize}
 
-\subsection*{Perspectives à moyen terme}
+\subsection*{Perspectives \`{a} moyen terme}
 \begin{itemize}
-    \item Rapprochement automatisé entre les clusters d'opérateurs et la table \texttt{OPERATEUR\_REF} pour enrichir le référentiel canonique.
-    \item Développement d'un tableau de bord analytique de suivi de la qualité des identifiants opérateurs.
-    \item Extension du pipeline aux données RCC (Répertoire des Comptes et Cartes de Paiement).
+    \item Rapprochement automatis\'{e} entre les clusters d'op\'{e}rateurs et la table \texttt{OPERATEUR\_REF}.
+    \item D\'{e}veloppement d'un tableau de bord analytique de suivi de la qualit\'{e} des identifiants.
+    \item Extension du pipeline aux donn\'{e}es RCC.
 \end{itemize}
 
-\subsection*{Perspectives à long terme}
+\subsection*{Perspectives \`{a} long terme}
 \begin{itemize}
-    \item Intégration de sources externes (registre OMPIC, données douanières) pour enrichir les signaux d'identité.
-    \item Développement d'un modèle de détection d'anomalies comportementales basé sur les clusters d'opérateurs consolidés.
-    \item Passage à un pipeline de déduplication en temps réel pour les opérations sensibles.
+    \item Int\'{e}gration de sources externes (registre OMPIC, donn\'{e}es douani\`{e}res).
+    \item D\'{e}veloppement d'un mod\`{e}le de d\'{e}tection d'anomalies comportementales.
+    \item Passage \`{a} un pipeline de d\'{e}duplication en temps r\'{e}el.
 \end{itemize}
 
 \bigskip
-\noindent En définitive, ce projet aura permis de démontrer qu'une problématique de qualité des données, souvent perçue comme insoluble, peut être adressée par une approche technique rigoureuse combinant nettoyage de données, Machine Learning probabiliste et classification supervisée. La transformation d'un système à 40,8\,\% de précision en un système à 72,7\,\% (et 85--90\,\% avec XGBoost) illustre la valeur d'une méthodologie itérative où chaque échec est traité comme une information diagnostique.
+\noindent En d\'{e}finitive, ce projet aura permis de d\'{e}montrer qu'une probl\'{e}matique de qualit\'{e} des donn\'{e}es peut '\^{e}tre adress\'{e}e par une approche technique rigoureuse combinant nettoyage de donn\'{e}es, Entity Resolution probabiliste et clustering non supervis\'{e}. Le parcours exp\'{e}rimental --- 18+ exp\'{e}riences, des mod\`{e}les supervis\'{e}s rejet\'{e}s au clustering retenu --- illustre la valeur d'une m\'{e}thodologie it\'{e}rative o\`{u} chaque \'{e}chec est trait\'{e} comme une information diagnostique.
 
-\textbf{Le pipeline est prêt pour les données réelles. L'architecture est solide. La méthodologie est reproductible.}
+\textbf{La plateforme est op\'{e}rationnelle. L'architectructure est solide. La m\'{e}thodologie est reproductible.}
