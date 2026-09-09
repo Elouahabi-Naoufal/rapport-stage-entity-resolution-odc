@@ -107,7 +107,7 @@
 	\emph{\textbf{Tuteur Entreprise :}} \\
 	 \tuteurentreprise \\
 	\end{flushright}
-\end{minipage}\\[0.4cm]
+\end{minipage}\par\vspace{0.4cm}
 ~
     \begin{minipage}{0.4\textwidth}
     \begin{center}
@@ -115,7 +115,7 @@
         \tuteurjury
     \end{center}
 \end{minipage}
-\vspace{0.3cm}\\
+\vspace{0.3cm}\par
 \begin{center}
 {\Large\textbf{Année universitaire 2025 -- 2026}}
 \end{center}
