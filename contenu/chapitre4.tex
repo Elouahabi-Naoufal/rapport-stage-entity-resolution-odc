@@ -532,7 +532,7 @@ La plateforme est conteneuris\'{e}e via Docker Compose, avec quatre services com
 
 \begin{figure}[H]
 \centering
-\small
+\resize\boxed{0.92\textwidth}{!}{%
 \begin{tikzpicture}[
   node distance=1cm,
   service/.style={rectangle, rounded corners=4pt, draw=black, thick, minimum width=2.5cm, minimum height=1.5cm, align=center, font=\small},
@@ -558,7 +558,8 @@ La plateforme est conteneuris\'{e}e via Docker Compose, avec quatre services com
 
 \node[font=\small\bfseries] at (5.5, 2) {Architecture Docker Compose --- 4 services};
 
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{Architecture de d\'{e}ploiement Docker --- communication inter-services}
 \label{fig:docker-arch}
 \end{figure}

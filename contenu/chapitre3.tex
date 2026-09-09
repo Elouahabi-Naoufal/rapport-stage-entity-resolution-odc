@@ -10,26 +10,26 @@ L'analyse fonctionnelle identifie les acteurs et les interactions avec la platef
 
 \begin{figure}[H]
 \centering
-\small
+\resize\boxed{0.92\textwidth}{!}{%
 \begin{tikzpicture}[
   actor/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=2cm, minimum height=0.8cm, align=center, font=\small},
-  usecase/.style={ellipse, draw=black, thick, minimum width=2.8cm, minimum height=0.7cm, align=center, font=\small},
-  system/.style={rectangle, draw=black, thick, dashed, minimum width=10cm, minimum height=9cm, rounded corners=5pt},
+  usecase/.style={ellipse, draw=black, thick, minimum width=2.6cm, minimum height=0.65cm, align=center, font=\small},
+  system/.style={rectangle, draw=black, thick, dashed, minimum width=9cm, minimum height=8.5cm, rounded corners=5pt},
   arrow/.style={-{Latex[length=2mm]}, thick}
 ]
 
 \node[system] (sys) at (0,0) {};
 
-\node[actor] (op) at (-6, 2) {Opérateur};
-\node[actor] (expert) at (-6, -2) {Expert\\métier};
+\node[actor] (op) at (-5.5, 1.5) {Opérateur};
+\node[actor] (expert) at (-5.5, -1.5) {Expert\\métier};
 
-\node[usecase] (uc1) at (0, 3.5) {Configurer un pipeline};
-\node[usecase] (uc2) at (0, 2.2) {Exécuter un pipeline};
-\node[usecase] (uc3) at (0, 0.9) {Suivre l'exécution};
+\node[usecase] (uc1) at (0, 3.2) {Configurer un pipeline};
+\node[usecase] (uc2) at (0, 2.0) {Exécuter un pipeline};
+\node[usecase] (uc3) at (0, 0.8) {Suivre l'exécution};
 \node[usecase] (uc4) at (0, -0.4) {Explorer les entités};
-\node[usecase] (uc5) at (0, -1.7) {Analyser les clusters};
-\node[usecase] (uc6) at (0, -3.0) {Lancer une enquête};
-\node[usecase] (uc7) at (0, -4.3) {Exporter les résultats};
+\node[usecase] (uc5) at (0, -1.6) {Analyser les clusters};
+\node[usecase] (uc6) at (0, -2.8) {Lancer une enquête};
+\node[usecase] (uc7) at (0, -4.0) {Exporter les résultats};
 
 \draw[arrow] (op) -- (uc1);
 \draw[arrow] (op) -- (uc2);
@@ -40,9 +40,10 @@ L'analyse fonctionnelle identifie les acteurs et les interactions avec la platef
 \draw[arrow] (expert) -- (uc6);
 \draw[arrow] (op) -- (uc7);
 
-\node[font=\small\bfseries] at (0, 5) {Système d'Entity Resolution};
+\node[font=\small\bfseries] at (0, 4.8) {Système d'Entity Resolution};
 
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{Diagramme de cas d'utilisation --- plateforme d'Entity Resolution}
 \label{fig:use-case}
 \end{figure}
@@ -70,7 +71,7 @@ La plateforme est compos\'{e}e de quatre couches logicielles communicantes :
 
 \begin{figure}[H]
 \centering
-\small
+\resize\boxed{0.92\textwidth}{!}{%
 \begin{tikzpicture}[
   node distance=0.8cm,
   component/.style={rectangle, rounded corners=4pt, draw=black, thick, minimum width=3cm, minimum height=1.2cm, align=center, font=\small},
@@ -91,7 +92,8 @@ La plateforme est compos\'{e}e de quatre couches logicielles communicantes :
 \draw[arr] (be) -- node[right, font=\scriptsize] {Drizzle ORM} (db);
 \draw[arr, dashed] (wo) -- ++(0,-1.5) -| node[below, font=\scriptsize, pos=0.25] {pyodbc / MSSQL} (db);
 
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{Architecture globale de la plateforme --- quatre couches communicantes}
 \label{fig:system-arch}
 \end{figure}
@@ -123,7 +125,7 @@ Le pipeline se compose de 9 \'{e}tapes ex\'{e}cut\'{e}es s\'{e}quentiellement. L
 
 \begin{figure}[H]
 \centering
-\small
+\resize\boxed{0.85\textwidth}{!}{%
 \begin{tikzpicture}[
   node distance=0.35cm,
   stage/.style={rectangle, rounded corners=3pt, draw=black, thick, minimum width=2.2cm, minimum height=0.7cm, align=center, font=\scriptsize},
@@ -164,7 +166,8 @@ Le pipeline se compose de 9 \'{e}tapes ex\'{e}cut\'{e}es s\'{e}quentiellement. L
 \node[right=0.8cm of s8, font=\scriptsize] {Entity IDs, canonical attrs};
 \node[right=0.8cm of s9, font=\scriptsize] {SQL Server output table};
 
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{Pipeline d'Entity Resolution --- 9 \'{e}tapes, les \'{e}tapes 6-7 sont optionnelles}
 \label{fig:er-pipeline}
 \end{figure}
@@ -257,7 +260,7 @@ Le diagramme suivant illustre l'encha\^{i}nement des op\'{e}rations lors de l'ex
 
 \begin{figure}[H]
 \centering
-\small
+\resize\boxed{0.95\textwidth}{!}{%
 \begin{tikzpicture}[
   actor/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.8cm, minimum height=0.6cm, align=center, font=\small},
   participant/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.8cm, minimum height=0.6cm, align=center, font=\small, fill=blue!8},
@@ -300,7 +303,8 @@ Le diagramme suivant illustre l'encha\^{i}nement des op\'{e}rations lors de l'ex
 \node[note] at (6, -4) {SSE: suivi en\\temps réel};
 \node[note] at (10, -6) {9 étapes\\séquentielles};
 
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{Diagramme de s\'{e}quence --- ex\'{e}cution compl\`{e}te d'un pipeline d'Entity Resolution}
 \label{fig:seq-pipeline}
 \end{figure}
@@ -309,7 +313,7 @@ Le diagramme suivant illustre l'encha\^{i}nement des op\'{e}rations lors de l'ex
 
 \begin{figure}[H]
 \centering
-\small
+\resize\boxed{0.95\textwidth}{!}{%
 \begin{tikzpicture}[
   participant/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.8cm, minimum height=0.6cm, align=center, font=\small, fill=blue!8},
   db/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.8cm, minimum height=0.6cm, align=center, font=\small, fill=teal!12},
@@ -350,7 +354,8 @@ Le diagramme suivant illustre l'encha\^{i}nement des op\'{e}rations lors de l'ex
 \node[note] at (6, -3) {3 sessions EM\\rotatives};
 \node[note] at (10, -7) {Veto RC:\\RC différents $\rightarrow$ rejeter};
 
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{Diagramme de s\'{e}quence --- pipeline de r\'{e}solution d'entit\'{e}s}
 \label{fig:seq-resolution}
 \end{figure}
@@ -361,7 +366,7 @@ Le worker est une application FastAPI ex\'{e}cutant le pipeline dans un thread s
 
 \begin{figure}[H]
 \centering
-\small
+\resize\boxed{0.85\textwidth}{!}{%
 \begin{tikzpicture}[
   node distance=0.6cm,
   module/.style={rectangle, rounded corners=3pt, draw=black, thick, minimum width=2.8cm, minimum height=0.8cm, align=center, font=\scriptsize},
@@ -389,7 +394,8 @@ Le worker est une application FastAPI ex\'{e}cutant le pipeline dans un thread s
 \draw[arr] (clust) -- (mat);
 \draw[arr] (mat) -- (ctx);
 
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{Modules du worker Python}
 \label{fig:worker-modules}
 \end{figure}
@@ -470,7 +476,7 @@ La base \texttt{ercp} contient 20 tables organis\'{e}es en 4 domaines fonctionne
 
 \begin{figure}[H]
 \centering
-\small
+\resize\boxed{\textwidth}{!}{%
 \begin{tikzpicture}[
   entity/.style={rectangle, draw=black, thick, minimum width=2.8cm, font=\small\bfseries, fill=blue!8},
   attr/.style={font=\scriptsize},
@@ -591,7 +597,8 @@ La base \texttt{ercp} contient 20 tables organis\'{e}es en 4 domaines fonctionne
 \draw[rel] (ents.south) -- ++(0,-0.3) -| (rel.north);
 \draw[rel] (runs.south) -- ++(0,-0.3) -| (logs.north);
 
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{Mod\`{e}le UML de la base de donn\'{e}es PostgreSQL --- 20 tables, 4 domaines fonctionnels}
 \label{fig:uml-schema}
 \end{figure}
