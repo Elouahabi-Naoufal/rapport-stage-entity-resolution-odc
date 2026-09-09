@@ -262,46 +262,50 @@ Le diagramme suivant illustre l'encha\^{i}nement des op\'{e}rations lors de l'ex
 \centering
 \resize\boxed{0.95\textwidth}{!}{%
 \begin{tikzpicture}[
-  actor/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.8cm, minimum height=0.6cm, align=center, font=\small},
-  participant/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.8cm, minimum height=0.6cm, align=center, font=\small, fill=blue!8},
-  msg/.style={-{Latex[length=2mm]}, thick},
-  msgdash/.style={-{Latex[length=2mm]}, thick, dashed},
-  note/.style={rectangle, draw=black, fill=yellow!15, rounded corners=2pt, font=\scriptsize, align=left, inner sep=4pt}
+  actor/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.6cm, minimum height=0.5cm, align=center, font=\scriptsize},
+  participant/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.6cm, minimum height=0.5cm, align=center, font=\scriptsize, fill=blue!8},
+  msg/.style={-{Latex[length=1.5mm]}, thick, font=\tiny},
+  msgdash/.style={-{Latex[length=1.5mm]}, thick, dashed, font=\tiny},
+  note/.style={rectangle, draw=black, fill=yellow!15, rounded corners=2pt, font=\tiny, align=left, inner sep=3pt}
 ]
 
-\node[actor] (user) at (0, 0) {Opérateur};
-\node[participant] (fe) at (4, 0) {Frontend};
-\node[participant] (api) at (8, 0) {API};
-\node[participant] (worker) at (12, 0) {Worker};
+\node[actor] (user) at (0, 0) {Utilisateur};
+\node[participant] (fe) at (3.5, 0) {Frontend};
+\node[participant] (api) at (7, 0) {API};
+\node[participant] (worker) at (10.5, 0) {Worker};
 
-\draw[gray, dashed] (0, -0.5) -- (0, -10);
-\draw[gray, dashed] (4, -0.5) -- (4, -10);
-\draw[gray, dashed] (8, -0.5) -- (8, -10);
-\draw[gray, dashed] (12, -0.5) -- (12, -10);
+\draw[gray, dashed] (0, -0.4) -- (0, -12);
+\draw[gray, dashed] (3.5, -0.4) -- (3.5, -12);
+\draw[gray, dashed] (7, -0.4) -- (7, -12);
+\draw[gray, dashed] (10.5, -0.4) -- (10.5, -12);
 
-\draw[msg] (user) -- node[above, font=\scriptsize] {1. Configure pipeline} (fe);
-\draw[msg] (fe) -- node[above, font=\scriptsize] {2. POST /api/pipelines} (api);
-\draw[msgdash] (api) -- node[below, font=\scriptsize] {3. Pipeline ID} (fe);
-\draw[msgdash] (fe) -- node[below, font=\scriptsize] {4. Configuration} (user);
+% Phase 1: Configuration
+\draw[msg] (user) -- node[above] {1. Configurer} (fe);
+\draw[msg] (fe) -- node[above] {2. POST /pipelines} (api);
+\draw[msgdash] (api) -- node[below] {3. ID} (fe);
 
-\draw[msg] (user) -- node[above, font=\scriptsize] {5. Lancer exécution} (fe);
-\draw[msg] (fe) -- node[above, font=\scriptsize] {6. POST /api/pipelines/:id/run} (api);
-\draw[msg] (api) -- node[above, font=\scriptsize] {7. HTTP POST /run-pipeline} (worker);
-\draw[msgdash] (api) -- node[below, font=\scriptsize] {8. Run ID} (fe);
+% Phase 2: Execution
+\draw[msg] (user) -- node[above] {4. Lancer} (fe);
+\draw[msg] (fe) -- node[above] {5. POST /run} (api);
+\draw[msg] (api) -- node[above] {6. POST /run-pipeline} (worker);
+\draw[msgdash] (api) -- node[below] {7. Run ID} (fe);
 
-\draw[msg] (worker) -- node[above, font=\scriptsize] {9. Load (MSSQL)} (worker);
-\draw[msg] (worker) -- node[above, font=\scriptsize] {10. Clean + Normalize} (worker);
-\draw[msg] (worker) -- node[above, font=\scriptsize] {11. Splink EM} (worker);
-\draw[msg] (worker) -- node[above, font=\scriptsize] {12. Identity + Embeddings} (worker);
-\draw[msg] (worker) -- node[above, font=\scriptsize] {13. Clustering} (worker);
-\draw[msg] (worker) -- node[above, font=\scriptsize] {14. Materialize} (worker);
+% Phase 3: Pipeline steps
+\draw[msg] (worker) -- node[above] {8. Load} (worker);
+\draw[msg] (worker) -- node[above] {9. Clean + Norm.} (worker);
+\draw[msg] (worker) -- node[above] {10. Splink EM} (worker);
+\draw[msg] (worker) -- node[above] {11. Identity} (worker);
+\draw[msg] (worker) -- node[above] {12. Embeddings} (worker);
+\draw[msg] (worker) -- node[above] {13. Clustering} (worker);
+\draw[msg] (worker) -- node[above] {14. Materialize} (worker);
 
-\draw[msg] (worker) -- node[above, font=\scriptsize] {15. POST /api/runs/:id/complete} (api);
-\draw[msg] (api) -- node[above, font=\scriptsize] {16. SSE: progress updates} (fe);
-\draw[msgdash] (fe) -- node[below, font=\scriptsize] {17. Résultats affichés} (user);
+% Phase 4: Results
+\draw[msg] (worker) -- node[above] {15. Complete} (api);
+\draw[msg] (api) -- node[above] {16. SSE progress} (fe);
+\draw[msgdash] (fe) -- node[below] {17. Afficher} (user);
 
-\node[note] at (6, -4) {SSE: suivi en\\temps réel};
-\node[note] at (10, -6) {9 étapes\\séquentielles};
+\node[note] at (5.25, -4) {SSE: temps réel};
+\node[note] at (8.75, -8) {9 étapes};
 
 \end{tikzpicture}%
 }
@@ -315,44 +319,48 @@ Le diagramme suivant illustre l'encha\^{i}nement des op\'{e}rations lors de l'ex
 \centering
 \resize\boxed{0.95\textwidth}{!}{%
 \begin{tikzpicture}[
-  participant/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.8cm, minimum height=0.6cm, align=center, font=\small, fill=blue!8},
-  db/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.8cm, minimum height=0.6cm, align=center, font=\small, fill=teal!12},
-  msg/.style={-{Latex[length=2mm]}, thick},
-  msgdash/.style={-{Latex[length=2mm]}, thick, dashed},
-  note/.style={rectangle, draw=black, fill=yellow!15, rounded corners=2pt, font=\scriptsize, align=left, inner sep=4pt}
+  participant/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.6cm, minimum height=0.5cm, align=center, font=\scriptsize, fill=blue!8},
+  db/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.6cm, minimum height=0.5cm, align=center, font=\scriptsize, fill=teal!12},
+  msg/.style={-{Latex[length=1.5mm]}, thick, font=\tiny},
+  msgdash/.style={-{Latex[length=1.5mm]}, thick, dashed, font=\tiny},
+  note/.style={rectangle, draw=black, fill=yellow!15, rounded corners=2pt, font=\tiny, align=left, inner sep=3pt}
 ]
 
 \node[participant] (api) at (0, 0) {API};
-\node[participant] (worker) at (4, 0) {Worker};
-\node[participant] (splink) at (8, 0) {Splink};
-\node[db] (duckdb) at (12, 0) {DuckDB};
+\node[participant] (worker) at (3.5, 0) {Worker};
+\node[participant] (splink) at (7, 0) {Splink};
+\node[db] (duckdb) at (10.5, 0) {DuckDB};
 
-\draw[gray, dashed] (0, -0.5) -- (0, -11);
-\draw[gray, dashed] (4, -0.5) -- (4, -11);
-\draw[gray, dashed] (8, -0.5) -- (8, -11);
-\draw[gray, dashed] (12, -0.5) -- (12, -11);
+\draw[gray, dashed] (0, -0.4) -- (0, -12);
+\draw[gray, dashed] (3.5, -0.4) -- (3.5, -12);
+\draw[gray, dashed] (7, -0.4) -- (7, -12);
+\draw[gray, dashed] (10.5, -0.4) -- (10.5, -12);
 
-\draw[msg] (api) -- node[above, font=\scriptsize] {1. Requête HTTP} (worker);
-\draw[msg] (worker) -- node[above, font=\scriptsize] {2. Chargement données} (duckdb);
-\draw[msgdash] (duckdb) -- node[below, font=\scriptsize] {3. DataFrame} (worker);
+% Phase 1: Load
+\draw[msg] (api) -- node[above] {1. HTTP request} (worker);
+\draw[msg] (worker) -- node[above] {2. Load data} (duckdb);
+\draw[msgdash] (duckdb) -- node[below] {3. DataFrame} (worker);
 
-\draw[msg] (worker) -- node[above, font=\scriptsize] {4. Normalisation} (worker);
-\draw[msg] (worker) -- node[above, font=\scriptsize] {5. Comparaisons} (splink);
-\draw[msg] (splink) -- node[above, font=\scriptsize] {6. EM training} (splink);
-\draw[msg] (splink) -- node[above, font=\scriptsize] {7. Candidate pairs} (duckdb);
-\draw[msgdash] (duckdb) -- node[below, font=\scriptsize] {8. Scores} (splink);
+% Phase 2: Normalize + Compare
+\draw[msg] (worker) -- node[above] {4. Normalize} (worker);
+\draw[msg] (worker) -- node[above] {5. Compare} (splink);
+\draw[msg] (splink) -- node[above] {6. EM train} (splink);
+\draw[msg] (splink) -- node[above] {7. Pairs} (duckdb);
+\draw[msgdash] (duckdb) -- node[below] {8. Scores} (splink);
 
-\draw[msg] (splink) -- node[above, font=\scriptsize] {9. Veto RC} (splink);
-\draw[msg] (splink) -- node[above, font=\scriptsize] {10. Matches acceptés} (worker);
+% Phase 3: Veto + Match
+\draw[msg] (splink) -- node[above] {9. Veto RC} (splink);
+\draw[msg] (splink) -- node[above] {10. Matches} (worker);
 
-\draw[msg] (worker) -- node[above, font=\scriptsize] {11. Clustering (Leiden)} (worker);
-\draw[msg] (worker) -- node[above, font=\scriptsize] {12. Materialisation} (worker);
-\draw[msg] (worker) -- node[above, font=\scriptsize] {13. Écriture résultats} (duckdb);
-\draw[msgdash] (duckdb) -- node[below, font=\scriptsize] {14. 502 entités} (worker);
-\draw[msgdash] (worker) -- node[below, font=\scriptsize] {15. Résultat final} (api);
+% Phase 4: Cluster + Materialize
+\draw[msg] (worker) -- node[above] {11. Leiden} (worker);
+\draw[msg] (worker) -- node[above] {12. Materialize} (worker);
+\draw[msg] (worker) -- node[above] {13. Write} (duckdb);
+\draw[msgdash] (duckdb) -- node[below] {14. 502 entities} (worker);
+\draw[msgdash] (worker) -- node[below] {15. Result} (api);
 
-\node[note] at (6, -3) {3 sessions EM\\rotatives};
-\node[note] at (10, -7) {Veto RC:\\RC différents $\rightarrow$ rejeter};
+\node[note] at (5.25, -4) {3 EM sessions};
+\node[note] at (8.75, -8) {RC diff $\rightarrow$ reject};
 
 \end{tikzpicture}%
 }
