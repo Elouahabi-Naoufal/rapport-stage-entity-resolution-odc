@@ -79,7 +79,7 @@
 
 % Titre du rapport
 \rule{\linewidth}{0.2 mm} \par\vspace{0.2 cm}
-{\LARGE\bfseries \titre \par} \
+{\LARGE\bfseries \titre \par}
 \rule{\linewidth}{0.2 mm} \par\vspace{0.4 cm}
 
 % Nom de l'étudiant
@@ -87,7 +87,7 @@
 \vspace{0.3cm}
 
 % Parcours de l'étudiant
-{\scshape \mention \par \filiere \par \master \par} 
+{\scshape \mention ~ \filiere ~ \master} 
 \vspace{0.3cm}
 
 % Dates
@@ -97,21 +97,21 @@
 % Représentants de l'étudiant
 \begin{minipage}{0.4\textwidth}
 	\begin{flushleft} 
-	\emph{\textbf{Tuteur EMSI :}}\par
-    \tuteuruniv \par 
+	\emph{\textbf{Tuteur EMSI :}}~
+    \tuteuruniv ~ 
 	\end{flushleft}
 \end{minipage}
 ~
 \begin{minipage}{0.4\textwidth}
 	\begin{flushright} 
-\emph{\textbf{Tuteur Entreprise :}}\par
-    \tuteurentreprise \par
+\emph{\textbf{Tuteur Entreprise :}}~
+    \tuteurentreprise ~
 	\end{flushright}
 \end{minipage}\par\vspace{0.4cm}
 ~
     \begin{minipage}{0.4\textwidth}
     \begin{center}
-        \emph{\textbf{Membres du Jury :}} \par
+        \emph{\textbf{Membres du Jury :}}~
         \tuteurjury
     \end{center}
 \end{minipage}
