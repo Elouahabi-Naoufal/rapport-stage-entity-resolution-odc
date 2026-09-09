@@ -1,35 +1,35 @@
-\chapter{Impl\'{ementation du Pipeline et Architecture de la Plateforme
+\chapter{Impl\'{e}mentation du Pipeline et Architecture de la Plateforme}
 
-Ce chapitre pr\'{esente l'impl\'{ementation compl\`{ete de l'architecture retenue apr\`{es les exp\'{eriences : le pipeline d'Entity Resolution, l'architectructure logicielle de la plateforme, la base de donn\'{ees PostgreSQL, et l'interface op\'{erationnelle.
+Ce chapitre pr\'{e}sente l'impl\'{e}mentation compl\`{e}te de l'architecture retenue apr\`{e}s les exp\'{e}riences : le pipeline d'Entity Resolution, l'architectructure logicielle de la plateforme, la base de donn\'{e}es PostgreSQL, et l'interface op\'{e}rationnelle.
 
-\section{Analyse fonctionnelle
+\section{Analyse fonctionnelle}
 
-\subsection{Diagramme de cas d'utilisation
+\subsection{Diagramme de cas d'utilisation}
 
-L'analyse fonctionnelle identifie les acteurs et les interactions avec la plateforme d'Entity Resolution. L'acteur principal est l'\textbf{opérateur qui configure, exécute et analyse les pipelines.
+L'analyse fonctionnelle identifie les acteurs et les interactions avec la plateforme d'Entity Resolution. L'acteur principal est l'\textbf{opérateur} qui configure, exécute et analyse les pipelines.
 
-\begin{figure[H]
+\begin{figure}[H]
 \centering
-\resize\boxed{0.92\textwidth{!{%
-\begin{tikzpicture[
-  actor/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=2cm, minimum height=0.8cm, align=center, font=\small,
-  usecase/.style={ellipse, draw=black, thick, minimum width=2.6cm, minimum height=0.65cm, align=center, font=\small,
-  system/.style={rectangle, draw=black, thick, dashed, minimum width=9cm, minimum height=8.5cm, rounded corners=5pt,
-  arrow/.style={-{Latex[length=2mm], thick
+\resize\boxed{0.92\textwidth}{!}{%
+\begin{tikzpicture}[
+  actor/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=2cm, minimum height=0.8cm, align=center, font=\small},
+  usecase/.style={ellipse, draw=black, thick, minimum width=2.6cm, minimum height=0.65cm, align=center, font=\small},
+  system/.style={rectangle, draw=black, thick, dashed, minimum width=9cm, minimum height=8.5cm, rounded corners=5pt},
+  arrow/.style={-{Latex[length=2mm]}, thick}
 ]
 
-\node[system] (sys) at (0,0) {;
+\node[system] (sys) at (0,0) {};
 
-\node[actor] (op) at (-5.5, 1.5) {Opérateur;
-\node[actor] (expert) at (-5.5, -1.5) {Expert\\métier;
+\node[actor] (op) at (-5.5, 1.5) {Opérateur};
+\node[actor] (expert) at (-5.5, -1.5) {Expert\\métier};
 
-\node[usecase] (uc1) at (0, 3.2) {Configurer un pipeline;
-\node[usecase] (uc2) at (0, 2.0) {Exécuter un pipeline;
-\node[usecase] (uc3) at (0, 0.8) {Suivre l'exécution;
-\node[usecase] (uc4) at (0, -0.4) {Explorer les entités;
-\node[usecase] (uc5) at (0, -1.6) {Analyser les clusters;
-\node[usecase] (uc6) at (0, -2.8) {Lancer une enquête;
-\node[usecase] (uc7) at (0, -4.0) {Exporter les résultats;
+\node[usecase] (uc1) at (0, 3.2) {Configurer un pipeline};
+\node[usecase] (uc2) at (0, 2.0) {Exécuter un pipeline};
+\node[usecase] (uc3) at (0, 0.8) {Suivre l'exécution};
+\node[usecase] (uc4) at (0, -0.4) {Explorer les entités};
+\node[usecase] (uc5) at (0, -1.6) {Analyser les clusters};
+\node[usecase] (uc6) at (0, -2.8) {Lancer une enquête};
+\node[usecase] (uc7) at (0, -4.0) {Exporter les résultats};
 
 \draw[arrow] (op) -- (uc1);
 \draw[arrow] (op) -- (uc2);
@@ -40,107 +40,107 @@ L'analyse fonctionnelle identifie les acteurs et les interactions avec la platef
 \draw[arrow] (expert) -- (uc6);
 \draw[arrow] (op) -- (uc7);
 
-\node[font=\small\bfseries] at (0, 4.8) {Système d'Entity Resolution;
+\node[font=\small\bfseries] at (0, 4.8) {Système d'Entity Resolution};
 
-\end{tikzpicture%
+\end{tikzpicture}%
+}
+\caption{Diagramme de cas d'utilisation --- plateforme d'Entity Resolution}
+\label{fig:use-case}
+\end{figure}
 
-\caption{Diagramme de cas d'utilisation --- plateforme d'Entity Resolution
-\label{fig:use-case
-\end{figure
+\subsection{Identification des acteurs}
 
-\subsection{Identification des acteurs
-
-\begin{table[H]
+\begin{table}[H]
 \centering
-\caption{Acteurs de la plateforme
-\renewcommand{\arraystretch{1.3
-\begin{tabular{|l|p{10cm|
+\caption{Acteurs de la plateforme}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|p{10cm}|}
 \hline
-\textbf{Acteur & \textbf{Description \\
+\textbf{Acteur} & \textbf{Description} \\
 \hline
-Opérateur & Configure et exécute les pipelines d'Entity Resolution, explore les entités r\'{esolues, exporte les résultats \\
+Opérateur & Configure et exécute les pipelines d'Entity Resolution, explore les entités r\'{e}solues, exporte les résultats \\
 \hline
 Expert métier & Valide les clusters, lance des enquêtes sur les entités suspectes, annote les relations inter-entités \\
 \hline
-\end{tabular
-\end{table
+\end{tabular}
+\end{table}
 
-\section{Architecture globale du syst\`{eme
+\section{Architecture globale du syst\`{e}me}
 
-La plateforme est compos\'{ee de quatre couches logicielles communicantes :
+La plateforme est compos\'{e}e de quatre couches logicielles communicantes :
 
-\begin{figure[H]
+\begin{figure}[H]
 \centering
-\resize\boxed{0.92\textwidth{!{%
-\begin{tikzpicture[
+\resize\boxed{0.92\textwidth}{!}{%
+\begin{tikzpicture}[
   node distance=0.8cm,
-  component/.style={rectangle, rounded corners=4pt, draw=black, thick, minimum width=3cm, minimum height=1.2cm, align=center, font=\small,
-  frontend/.style={component, fill=blue!12, draw=blue!60!black,
-  backend/.style={component, fill=violet!12, draw=violet!60!black,
-  worker/.style={component, fill=orange!12, draw=orange!60!black,
-  database/.style={component, fill=teal!12, draw=teal!60!black,
-  arr/.style={-{Latex[length=2.5mm], thick
+  component/.style={rectangle, rounded corners=4pt, draw=black, thick, minimum width=3cm, minimum height=1.2cm, align=center, font=\small},
+  frontend/.style={component, fill=blue!12, draw=blue!60!black},
+  backend/.style={component, fill=violet!12, draw=violet!60!black},
+  worker/.style={component, fill=orange!12, draw=orange!60!black},
+  database/.style={component, fill=teal!12, draw=teal!60!black},
+  arr/.style={-{Latex[length=2.5mm]}, thick}
 ]
 
-\node[frontend] (fe) {React + Vite\\[-2pt]\footnotesize Port 5173;
-\node[backend, right=2cm of fe] (be) {Express.js\\[-2pt]\footnotesize Port 3001;
-\node[worker, right=2cm of be] (wo) {Python Worker\\[-2pt]\footnotesize FastAPI :8001;
-\node[database, below=1.5cm of be] (db) {PostgreSQL\\[-2pt]\footnotesize ercp :5432;
+\node[frontend] (fe) {React + Vite\\[-2pt]\footnotesize Port 5173};
+\node[backend, right=2cm of fe] (be) {Express.js\\[-2pt]\footnotesize Port 3001};
+\node[worker, right=2cm of be] (wo) {Python Worker\\[-2pt]\footnotesize FastAPI :8001};
+\node[database, below=1.5cm of be] (db) {PostgreSQL\\[-2pt]\footnotesize ercp :5432};
 
-\draw[arr] (fe) -- node[above, font=\scriptsize] {REST + SSE (be);
-\draw[arr] (be) -- node[above, font=\scriptsize] {HTTP/JSON (wo);
-\draw[arr] (be) -- node[right, font=\scriptsize] {Drizzle ORM (db);
-\draw[arr, dashed] (wo) -- ++(0,-1.5) -| node[below, font=\scriptsize, pos=0.25] {pyodbc / MSSQL (db);
+\draw[arr] (fe) -- node[above, font=\scriptsize] {REST + SSE} (be);
+\draw[arr] (be) -- node[above, font=\scriptsize] {HTTP/JSON} (wo);
+\draw[arr] (be) -- node[right, font=\scriptsize] {Drizzle ORM} (db);
+\draw[arr, dashed] (wo) -- ++(0,-1.5) -| node[below, font=\scriptsize, pos=0.25] {pyodbc / MSSQL} (db);
 
-\end{tikzpicture%
+\end{tikzpicture}%
+}
+\caption{Architecture globale de la plateforme --- quatre couches communicantes}
+\label{fig:system-arch}
+\end{figure}
 
-\caption{Architecture globale de la plateforme --- quatre couches communicantes
-\label{fig:system-arch
-\end{figure
+\subsection{Flux de donn\'{e}es --- du brut \`{a} l'entit\'{e} r\'{e}solue}
 
-\subsection{Flux de donn\'{ees --- du brut \`{a l'entit\'{e r\'{esolue
+Le diagramme suivant montre comment les donn\'{e}es brutes de MSSQL sont transform\'{e}es en entit\'{e}s r\'{e}solues \`{a} travers le pipeline.
 
-Le diagramme suivant montre comment les donn\'{ees brutes de MSSQL sont transform\'{ees en entit\'{es r\'{esolues \`{a travers le pipeline.
-
-\begin{figure[H]
+\begin{figure}[H]
 \centering
-\resize\boxed{0.95\textwidth{!{%
-\begin{tikzpicture[
-  stage/.style={rectangle, rounded corners=3pt, draw=black, thick, minimum width=2cm, minimum height=0.9cm, align=center, font=\scriptsize,
-  data/.style={stage, fill=blue!12, draw=blue!60!black,
-  process/.style={stage, fill=violet!12, draw=violet!60!black,
-  output/.style={stage, fill=teal!12, draw=teal!60!black,
-  arr/.style={-{Latex[length=2mm], thick,
-  label/.style={font=\tiny, text=gray!70!black
+\resize\boxed{0.95\textwidth}{!}{%
+\begin{tikzpicture}[
+  stage/.style={rectangle, rounded corners=3pt, draw=black, thick, minimum width=2cm, minimum height=0.9cm, align=center, font=\scriptsize},
+  data/.style={stage, fill=blue!12, draw=blue!60!black},
+  process/.style={stage, fill=violet!12, draw=violet!60!black},
+  output/.style={stage, fill=teal!12, draw=teal!60!black},
+  arr/.style={-{Latex[length=2mm]}, thick},
+  label/.style={font=\tiny, text=gray!70!black}
 ]
 
 % Source
-\node[data] (src) at (0, 0) {MSSQL\\formule\_P\_clean;
-\node[label, below=2pt of src] {2.5M d\'{eclarations;
+\node[data] (src) at (0, 0) {MSSQL\\formule\_P\_clean};
+\node[label, below=2pt of src] {2.5M d\'{e}clarations};
 
 % Step 1: Load
-\node[process, right=1.2cm of src] (load) {Load\\[-2pt]\tiny pyodbc;
-\node[label, below=2pt of load] {DataFrame;
+\node[process, right=1.2cm of src] (load) {Load\\[-2pt]\tiny pyodbc};
+\node[label, below=2pt of load] {DataFrame};
 
 % Step 2-3: Clean + Norm
-\node[process, right=1.2cm of load] (clean) {Clean\\+ Normalize;
-\node[label, below=2pt of clean] {RC, RS, DO;
+\node[process, right=1.2cm of load] (clean) {Clean\\+ Normalize};
+\node[label, below=2pt of clean] {RC, RS, DO};
 
 % Step 4: Splink
-\node[process, right=1.2cm of clean] (splink) {Splink\\[-2pt]\tiny Fellegi-Sunter;
-\node[label, below=2pt of splink] {Paires candidates;
+\node[process, right=1.2cm of clean] (splink) {Splink\\[-2pt]\tiny Fellegi-Sunter};
+\node[label, below=2pt of splink] {Paires candidates};
 
 % Step 5-6: Identity + Embeddings
-\node[process, right=1.2cm of splink] (identity) {Identity\\[-2pt]\tiny + Embeddings;
-\node[label, below=2pt of identity] {Matches;
+\node[process, right=1.2cm of splink] (identity) {Identity\\[-2pt]\tiny + Embeddings};
+\node[label, below=2pt of identity] {Matches};
 
 % Step 7: Clustering
-\node[process, right=1.2cm of identity] (cluster) {Clustering\\[-2pt]\tiny Leiden;
-\node[label, below=2pt of cluster] {Clusters;
+\node[process, right=1.2cm of identity] (cluster) {Clustering\\[-2pt]\tiny Leiden};
+\node[label, below=2pt of cluster] {Clusters};
 
 % Step 8-9: Materialize + Output
-\node[output, right=1.2cm of cluster] (mat) {Materialize\\+ Output;
-\node[label, below=2pt of mat] {502 entit\'{es;
+\node[output, right=1.2cm of cluster] (mat) {Materialize\\+ Output};
+\node[label, below=2pt of mat] {502 entit\'{e}s};
 
 % Arrows
 \draw[arr] (src) -- (load);
@@ -151,62 +151,62 @@ Le diagramme suivant montre comment les donn\'{ees brutes de MSSQL sont transfor
 \draw[arr] (cluster) -- (mat);
 
 % Reduction annotations
-\node[font=\tiny, text=red!70!black, above] at (6, 0.8) {2.5M $\rightarrow$ 10K $\rightarrow$ 237K paires $\rightarrow$ 502 entit\'{es;
+\node[font=\tiny, text=red!70!black, above] at (6, 0.8) {2.5M $\rightarrow$ 10K $\rightarrow$ 237K paires $\rightarrow$ 502 entit\'{e}s};
 
-\end{tikzpicture%
+\end{tikzpicture}%
+}
+\caption{Flux de donn\'{e}es --- transformation des donn\'{e}es brutes en entit\'{e}s r\'{e}solues}
+\label{fig:data-flow}
+\end{figure}
 
-\caption{Flux de donn\'{ees --- transformation des donn\'{ees brutes en entit\'{es r\'{esolues
-\label{fig:data-flow
-\end{figure
-
-\begin{table[H]
+\begin{table}[H]
 \centering
-\caption{Technologies utilis\'{ees par couche
-\renewcommand{\arraystretch{1.3
-\begin{tabular{|l|l|p{7cm|
+\caption{Technologies utilis\'{e}es par couche}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|p{7cm}|}
 \hline
-\textbf{Couche & \textbf{Technologie & \textbf{Justification \\
+\textbf{Couche} & \textbf{Technologie} & \textbf{Justification} \\
 \hline
 Frontend & React 18 + TypeScript + Vite & SPA moderne, rendu rapide, typage fort \\
 \hline
-Backend & Express.js (Node.js) & Serveur API REST + SSE pour le suivi en temps r\'{eel \\
+Backend & Express.js (Node.js) & Serveur API REST + SSE pour le suivi en temps r\'{e}el \\
 \hline
 Worker & Python 3.14 + FastAPI + Splink 4 + DuckDB & Calcul scientifique, Splink natif, DuckDB comme backend SQL \\
 \hline
-Base de donn\'{ees & PostgreSQL 16 + Drizzle ORM & Donn\'{ees relationnelles, migrations, int\'{egrit\'{e r\'{eférentielle \\
+Base de donn\'{e}es & PostgreSQL 16 + Drizzle ORM & Donn\'{e}es relationnelles, migrations, int\'{e}grit\'{e} r\'{e}férentielle \\
 \hline
-Source externe & SQL Server (MSSQL) via pyodbc & Donn\'{ees sources Office des Changes \\
+Source externe & SQL Server (MSSQL) via pyodbc & Donn\'{e}es sources Office des Changes \\
 \hline
-\end{tabular
-\end{table
+\end{tabular}
+\end{table}
 
-\section{Le pipeline d'Entity Resolution
+\section{Le pipeline d'Entity Resolution}
 
-Le pipeline se compose de 9 \'{etapes ex\'{ecut\'{ees s\'{equentiellement. Les 4 premi\`{eres (chargement, nettoyage, normalisation, Splink) sont toujours actives. Les \'{etapes 6-7 (embeddings + clustering Leiden) sont optionnelles et configurables.
+Le pipeline se compose de 9 \'{e}tapes ex\'{e}cut\'{e}es s\'{e}quentiellement. Les 4 premi\`{e}res (chargement, nettoyage, normalisation, Splink) sont toujours actives. Les \'{e}tapes 6-7 (embeddings + clustering Leiden) sont optionnelles et configurables.
 
-\begin{figure[H]
+\begin{figure}[H]
 \centering
-\resize\boxed{0.85\textwidth{!{%
-\begin{tikzpicture[
+\resize\boxed{0.85\textwidth}{!}{%
+\begin{tikzpicture}[
   node distance=0.35cm,
-  stage/.style={rectangle, rounded corners=3pt, draw=black, thick, minimum width=2.2cm, minimum height=0.7cm, align=center, font=\scriptsize,
-  sdata/.style={stage, fill=blue!15, draw=blue!60!black,
-  sprocess/.style={stage, fill=violet!15, draw=violet!60!black,
-  soutput/.style={stage, fill=teal!15, draw=teal!60!black,
-  soptional/.style={stage, fill=orange!10, draw=orange!60!black, dashed,
-  arr/.style={-{Latex[length=2mm], thick,
-  arrdash/.style={-{Latex[length=2mm], thick, dashed, orange!60!black
+  stage/.style={rectangle, rounded corners=3pt, draw=black, thick, minimum width=2.2cm, minimum height=0.7cm, align=center, font=\scriptsize},
+  sdata/.style={stage, fill=blue!15, draw=blue!60!black},
+  sprocess/.style={stage, fill=violet!15, draw=violet!60!black},
+  soutput/.style={stage, fill=teal!15, draw=teal!60!black},
+  soptional/.style={stage, fill=orange!10, draw=orange!60!black, dashed},
+  arr/.style={-{Latex[length=2mm]}, thick},
+  arrdash/.style={-{Latex[length=2mm]}, thick, dashed, orange!60!black}
 ]
 
-\node[sdata] (s1) {Load;
-\node[sprocess, below=of s1] (s2) {Clean;
-\node[sprocess, below=of s2] (s3) {Normalize;
-\node[sprocess, below=of s3] (s4) {Splink;
-\node[sprocess, below=of s4] (s5) {Pair Decisions;
-\node[soptional, below=of s5] (s6) {Embeddings;
-\node[sprocess, below=of s6] (s7) {Clustering;
-\node[sprocess, below=of s7] (s8) {Materialize;
-\node[soutput, below=of s8] (s9) {Output;
+\node[sdata] (s1) {Load};
+\node[sprocess, below=of s1] (s2) {Clean};
+\node[sprocess, below=of s2] (s3) {Normalize};
+\node[sprocess, below=of s3] (s4) {Splink};
+\node[sprocess, below=of s4] (s5) {Pair Decisions};
+\node[soptional, below=of s5] (s6) {Embeddings};
+\node[sprocess, below=of s6] (s7) {Clustering};
+\node[sprocess, below=of s7] (s8) {Materialize};
+\node[soutput, below=of s8] (s9) {Output};
 
 \draw[arr] (s1) -- (s2);
 \draw[arr] (s2) -- (s3);
@@ -217,123 +217,123 @@ Le pipeline se compose de 9 \'{etapes ex\'{ecut\'{ees s\'{equentiellement. Les 4
 \draw[arr] (s7) -- (s8);
 \draw[arr] (s8) -- (s9);
 
-\node[right=0.8cm of s1, font=\scriptsize, text=blue!60!black] {SQL Server $\rightarrow$ DataFrame;
-\node[right=0.8cm of s2, font=\scriptsize] {Trim, nulls, dedup;
-\node[right=0.8cm of s3, font=\scriptsize] {NFC, RC rules, RS normalization;
-\node[right=0.8cm of s4, font=\scriptsize] {EM training, candidate pairs;
-\node[right=0.8cm of s5, font=\scriptsize] {Accept/reject pairs;
-\node[right=0.8cm of s6, font=\scriptsize, text=orange!60!black] {e5-small embeddings;
-\node[right=0.8cm of s7, font=\scriptsize] {CC or Leiden;
-\node[right=0.8cm of s8, font=\scriptsize] {Entity IDs, canonical attrs;
-\node[right=0.8cm of s9, font=\scriptsize] {SQL Server output table;
+\node[right=0.8cm of s1, font=\scriptsize, text=blue!60!black] {SQL Server $\rightarrow$ DataFrame};
+\node[right=0.8cm of s2, font=\scriptsize] {Trim, nulls, dedup};
+\node[right=0.8cm of s3, font=\scriptsize] {NFC, RC rules, RS normalization};
+\node[right=0.8cm of s4, font=\scriptsize] {EM training, candidate pairs};
+\node[right=0.8cm of s5, font=\scriptsize] {Accept/reject pairs};
+\node[right=0.8cm of s6, font=\scriptsize, text=orange!60!black] {e5-small embeddings};
+\node[right=0.8cm of s7, font=\scriptsize] {CC or Leiden};
+\node[right=0.8cm of s8, font=\scriptsize] {Entity IDs, canonical attrs};
+\node[right=0.8cm of s9, font=\scriptsize] {SQL Server output table};
 
-\end{tikzpicture%
+\end{tikzpicture}%
+}
+\caption{Pipeline d'Entity Resolution --- 9 \'{e}tapes, les \'{e}tapes 6-7 sont optionnelles}
+\label{fig:er-pipeline}
+\end{figure}
 
-\caption{Pipeline d'Entity Resolution --- 9 \'{etapes, les \'{etapes 6-7 sont optionnelles
-\label{fig:er-pipeline
-\end{figure
+\subsection{\'{E}tape 1 : chargement des donn\'{e}es}
 
-\subsection{\'{Etape 1 : chargement des donn\'{ees
+Le connecteur SQL Server (\texttt{pyodbc}) charge les colonnes s\'{e}lectionn\'{e}es depuis la table source. Un param\`{e}tre \texttt{row\_limit} permet de travailler sur un \'{e}chantillon (10\,000 enregistr\'{e}ments pour les exp\'{e}riences).
 
-Le connecteur SQL Server (\texttt{pyodbc) charge les colonnes s\'{electionn\'{ees depuis la table source. Un param\`{etre \texttt{row\_limit permet de travailler sur un \'{echantillon (10\,000 enregistr\'{ements pour les exp\'{eriences).
+\subsection{\'{E}tape 2 : nettoyage}
 
-\subsection{\'{Etape 2 : nettoyage
-
-Le nettoyage applique des transformations g\'{en\'{eriques :
-\begin{itemize
-    \item Trim des espaces en d\'{ebut/fin
+Le nettoyage applique des transformations g\'{e}n\'{e}riques :
+\begin{itemize}
+    \item Trim des espaces en d\'{e}but/fin
     \item Normalisation des valeurs NULL (chaines vides, ``NULL'', ``N/A'')
-    \item Suppression des caract\`{eres de contr\^{ole
-    \item D\'{eduplication exacte des lignes identiques
-\end{itemize
+    \item Suppression des caract\`{e}res de contr\^{o}le
+    \item D\'{e}duplication exacte des lignes identiques
+\end{itemize}
 
-\subsection{\'{Etape 3 : normalisation
+\subsection{\'{E}tape 3 : normalisation}
 
-La normalisation est sp\'{ecifique au domaine marocain :
+La normalisation est sp\'{e}cifique au domaine marocain :
 
-\begin{table[H]
+\begin{table}[H]
 \centering
-\caption{R\`{egles de normalisation du champ RC
-\renewcommand{\arraystretch{1.3
-\begin{tabular{|p{4cm|p{4cm|p{5cm|
+\caption{R\`{e}gles de normalisation du champ RC}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{4cm}|p{4cm}|p{5cm}|}
 \hline
-\textbf{Corruption & \textbf{Avant & \textbf{Apr\`{es \\
+\textbf{Corruption} & \textbf{Avant} & \textbf{Apr\`{e}s} \\
 \hline
-Pr\'{efixe \texttt{RC/ & \texttt{RC/040178 & \texttt{040178 \\
+Pr\'{e}fixe \texttt{RC/} & \texttt{RC/040178} & \texttt{040178} \\
 \hline
-Espaces internes & \texttt{040 178 & \texttt{040178 \\
+Espaces internes & \texttt{040 178} & \texttt{040178} \\
 \hline
-Tirets & \texttt{040-178 & \texttt{040178 \\
+Tirets & \texttt{040-178} & \texttt{040178} \\
 \hline
-Majuscules/minuscules & \texttt{rc/040178 & \texttt{040178 \\
+Majuscules/minuscules & \texttt{rc/040178} & \texttt{040178} \\
 \hline
-\end{tabular
-\end{table
+\end{tabular}
+\end{table}
 
-Pour \texttt{RAISON\_SOCIALE : conversion majuscules, suppression accents, ponctuation, suffixes (MAROC). La strat\'{egie hybride \texttt{\_R / dirty est appliqu\'{ee : si \texttt{\_R non-NULL, utiliser \texttt{\_R ; sinon, utiliser la valeur nettoy\'{ee.
+Pour \texttt{RAISON\_SOCIALE} : conversion majuscules, suppression accents, ponctuation, suffixes (MAROC). La strat\'{e}gie hybride \texttt{\_R} / dirty est appliqu\'{e}e : si \texttt{\_R} non-NULL, utiliser \texttt{\_R} ; sinon, utiliser la valeur nettoy\'{e}e.
 
-\subsection{\'{Etape 4 : Splink --- Fellegi-Sunter + EM
+\subsection{\'{E}tape 4 : Splink --- Fellegi-Sunter + EM}
 
-\subsubsection{Cr\'{eation du linker
+\subsubsection{Cr\'{e}ation du linker}
 
-Le linker Splink est initialis\'{e avec DuckDB comme backend SQL. Les comparaisons d\'{efinies comprennent :
-\begin{itemize
-    \item \textbf{RC : JaroWinkler avec seuils 0,95 / 0,80
-    \item \textbf{RAISON\_SOCIALE\_R : JaroWinkler avec seuils 0,95 / 0,88 / 0,80
-    \item \textbf{RAISON\_SOCIALE : JaroWinkler avec seuils 0,92 / 0,80 / 0,70
-    \item \textbf{DONNEUR\_ORDRE : JaroWinkler avec seuils 0,90 / 0,75
-    \item \textbf{CODE\_BANQUE\_BAM, GUICHET, CENTRE\_R, VILLE : ExactMatch
-\end{itemize
+Le linker Splink est initialis\'{e} avec DuckDB comme backend SQL. Les comparaisons d\'{e}finies comprennent :
+\begin{itemize}
+    \item \textbf{RC} : JaroWinkler avec seuils 0,95 / 0,80
+    \item \textbf{RAISON\_SOCIALE\_R} : JaroWinkler avec seuils 0,95 / 0,88 / 0,80
+    \item \textbf{RAISON\_SOCIALE} : JaroWinkler avec seuils 0,92 / 0,80 / 0,70
+    \item \textbf{DONNEUR\_ORDRE} : JaroWinkler avec seuils 0,90 / 0,75
+    \item \textbf{CODE\_BANQUE\_BAM, GUICHET, CENTRE\_R, VILLE} : ExactMatch
+\end{itemize}
 
-\subsubsection{Entra\^{inement EM
+\subsubsection{Entra\^{i}nement EM}
 
-Trois sessions d'entra\^{inement rotatives estiment les param\`{etres $m_k$ et $u_k$ sans donn\'{ees labellis\'{ees. Un champ utilis\'{e dans le blocage d'une session ne peut pas '\^{etre entra\^{in\'{e dans cette m\^{eme session.
+Trois sessions d'entra\^{i}nement rotatives estiment les param\`{e}tres $m_k$ et $u_k$ sans donn\'{e}es labellis\'{e}es. Un champ utilis\'{e} dans le blocage d'une session ne peut pas '\^{e}tre entra\^{i}n\'{e} dans cette m\^{e}me session.
 
-\subsubsection{Pr\'{ediction et veto RC
+\subsubsection{Pr\'{e}diction et veto RC}
 
-Apr\`{es entra\^{inement, le score de match est calcul\'{e pour toutes les paires candidates. Le veto RC est appliqu\'{e en post-traitement : toute paire avec des RC diff\'{erents (non-nuls) est rejet\'{ee.
+Apr\`{e}s entra\^{i}nement, le score de match est calcul\'{e} pour toutes les paires candidates. Le veto RC est appliqu\'{e} en post-traitement : toute paire avec des RC diff\'{e}rents (non-nuls) est rejet\'{e}e.
 
-\subsection{\'{Etapes 5-6 : d\'{ecisions de paires et embeddings
+\subsection{\'{E}tapes 5-6 : d\'{e}cisions de paires et embeddings}
 
-Les paires avec un score $\geq$ seuil sont accept\'{ees comme matches. Les paires avec un score entre 0,5 et le seuil peuvent '\^{etre enrichies par des similarit\'{es d'embeddings neuronaux (mod\`{ele \texttt{multilingual-e5-small, 384 dimensions).
+Les paires avec un score $\geq$ seuil sont accept\'{e}es comme matches. Les paires avec un score entre 0,5 et le seuil peuvent '\^{e}tre enrichies par des similarit\'{e}s d'embeddings neuronaux (mod\`{e}le \texttt{multilingual-e5-small}, 384 dimensions).
 
-\subsection{\'{Etape 7 : clustering
+\subsection{\'{E}tape 7 : clustering}
 
-Deux strat\'{egies de clustering sont impl\'{ement\'{ees :
+Deux strat\'{e}gies de clustering sont impl\'{e}ment\'{e}es :
 
-\begin{itemize
-    \item \textbf{Composantes connexes : simple, d\'{eterministe, rapide. Chaque composante connexe du graphe de matches devient un cluster.
-    \item \textbf{Leiden : algorithme de d\'{etection de communaut\'{es (igraph + leidenalg). Param\`{etres : r\'{esolution (granularit\'{e), nombre de voisins k-NN, m\'{etrique de distance.
-\end{itemize
+\begin{itemize}
+    \item \textbf{Composantes connexes} : simple, d\'{e}terministe, rapide. Chaque composante connexe du graphe de matches devient un cluster.
+    \item \textbf{Leiden} : algorithme de d\'{e}tection de communaut\'{e}s (igraph + leidenalg). Param\`{e}tres : r\'{e}solution (granularit\'{e}), nombre de voisins k-NN, m\'{e}trique de distance.
+\end{itemize}
 
-\subsection{\'{Etape 8 : mat\'{erialisation des entit\'{es
+\subsection{\'{E}tape 8 : mat\'{e}rialisation des entit\'{e}s}
 
-Chaque cluster est transform\'{e en une entit\'{e canonique :
-\begin{itemize
-    \item \textbf{ID stable : \texttt{ENT-\{run\_id\-\{seq:06d\
-    \item \textbf{Attributs canoniques : RC, nom, banque, guichet extraits par vote majoritaire
-    \item \textbf{Statut : \texttt{auto\_approved ($\geq$0,95), \texttt{review (0,3--0,95), \texttt{flagged (<0,3 ou >50 membres)
-\end{itemize
+Chaque cluster est transform\'{e} en une entit\'{e} canonique :
+\begin{itemize}
+    \item \textbf{ID stable} : \texttt{ENT-\{run\_id\}-\{seq:06d\}}
+    \item \textbf{Attributs canoniques} : RC, nom, banque, guichet extraits par vote majoritaire
+    \item \textbf{Statut} : \texttt{auto\_approved} ($\geq$0,95), \texttt{review} (0,3--0,95), \texttt{flagged} (<0,3 ou >50 membres)
+\end{itemize}
 
-\subsubsection{Diagramme de s\'{equence --- ex\'{ecution du pipeline
+\subsubsection{Diagramme de s\'{e}quence --- ex\'{e}cution du pipeline}
 
-Le diagramme suivant illustre l'encha\^{inement des op\'{erations lors de l'ex\'{ecution d'un pipeline d'Entity Resolution, de la configuration \`{a la restitution des r\'{esultats.
+Le diagramme suivant illustre l'encha\^{i}nement des op\'{e}rations lors de l'ex\'{e}cution d'un pipeline d'Entity Resolution, de la configuration \`{a} la restitution des r\'{e}sultats.
 
-\begin{figure[H]
+\begin{figure}[H]
 \centering
-\resize\boxed{0.95\textwidth{!{%
-\begin{tikzpicture[
-  actor/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.6cm, minimum height=0.5cm, align=center, font=\scriptsize,
-  participant/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.6cm, minimum height=0.5cm, align=center, font=\scriptsize, fill=blue!8,
-  msg/.style={-{Latex[length=1.5mm], thick, font=\tiny,
-  msgdash/.style={-{Latex[length=1.5mm], thick, dashed, font=\tiny,
-  note/.style={rectangle, draw=black, fill=yellow!15, rounded corners=2pt, font=\tiny, align=left, inner sep=3pt
+\resize\boxed{0.95\textwidth}{!}{%
+\begin{tikzpicture}[
+  actor/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.6cm, minimum height=0.5cm, align=center, font=\scriptsize},
+  participant/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.6cm, minimum height=0.5cm, align=center, font=\scriptsize, fill=blue!8},
+  msg/.style={-{Latex[length=1.5mm]}, thick, font=\tiny},
+  msgdash/.style={-{Latex[length=1.5mm]}, thick, dashed, font=\tiny},
+  note/.style={rectangle, draw=black, fill=yellow!15, rounded corners=2pt, font=\tiny, align=left, inner sep=3pt}
 ]
 
-\node[actor] (user) at (0, 0) {Utilisateur;
-\node[participant] (fe) at (3.5, 0) {Frontend;
-\node[participant] (api) at (7, 0) {API;
-\node[participant] (worker) at (10.5, 0) {Worker;
+\node[actor] (user) at (0, 0) {Utilisateur};
+\node[participant] (fe) at (3.5, 0) {Frontend};
+\node[participant] (api) at (7, 0) {API};
+\node[participant] (worker) at (10.5, 0) {Worker};
 
 \draw[gray, dashed] (0, -0.4) -- (0, -12);
 \draw[gray, dashed] (3.5, -0.4) -- (3.5, -12);
@@ -341,56 +341,56 @@ Le diagramme suivant illustre l'encha\^{inement des op\'{erations lors de l'ex\'
 \draw[gray, dashed] (10.5, -0.4) -- (10.5, -12);
 
 % Phase 1: Configuration
-\draw[msg] (user) -- node[above] {1. Configurer (fe);
-\draw[msg] (fe) -- node[above] {2. POST /pipelines (api);
-\draw[msgdash] (api) -- node[below] {3. ID (fe);
+\draw[msg] (user) -- node[above] {1. Configurer} (fe);
+\draw[msg] (fe) -- node[above] {2. POST /pipelines} (api);
+\draw[msgdash] (api) -- node[below] {3. ID} (fe);
 
 % Phase 2: Execution
-\draw[msg] (user) -- node[above] {4. Lancer (fe);
-\draw[msg] (fe) -- node[above] {5. POST /run (api);
-\draw[msg] (api) -- node[above] {6. POST /run-pipeline (worker);
-\draw[msgdash] (api) -- node[below] {7. Run ID (fe);
+\draw[msg] (user) -- node[above] {4. Lancer} (fe);
+\draw[msg] (fe) -- node[above] {5. POST /run} (api);
+\draw[msg] (api) -- node[above] {6. POST /run-pipeline} (worker);
+\draw[msgdash] (api) -- node[below] {7. Run ID} (fe);
 
 % Phase 3: Pipeline steps
-\draw[msg] (worker) -- node[above] {8. Load (worker);
-\draw[msg] (worker) -- node[above] {9. Clean + Norm. (worker);
-\draw[msg] (worker) -- node[above] {10. Splink EM (worker);
-\draw[msg] (worker) -- node[above] {11. Identity (worker);
-\draw[msg] (worker) -- node[above] {12. Embeddings (worker);
-\draw[msg] (worker) -- node[above] {13. Clustering (worker);
-\draw[msg] (worker) -- node[above] {14. Materialize (worker);
+\draw[msg] (worker) -- node[above] {8. Load} (worker);
+\draw[msg] (worker) -- node[above] {9. Clean + Norm.} (worker);
+\draw[msg] (worker) -- node[above] {10. Splink EM} (worker);
+\draw[msg] (worker) -- node[above] {11. Identity} (worker);
+\draw[msg] (worker) -- node[above] {12. Embeddings} (worker);
+\draw[msg] (worker) -- node[above] {13. Clustering} (worker);
+\draw[msg] (worker) -- node[above] {14. Materialize} (worker);
 
 % Phase 4: Results
-\draw[msg] (worker) -- node[above] {15. Complete (api);
-\draw[msg] (api) -- node[above] {16. SSE progress (fe);
-\draw[msgdash] (fe) -- node[below] {17. Afficher (user);
+\draw[msg] (worker) -- node[above] {15. Complete} (api);
+\draw[msg] (api) -- node[above] {16. SSE progress} (fe);
+\draw[msgdash] (fe) -- node[below] {17. Afficher} (user);
 
-\node[note] at (5.25, -4) {SSE: temps réel;
-\node[note] at (8.75, -8) {9 étapes;
+\node[note] at (5.25, -4) {SSE: temps réel};
+\node[note] at (8.75, -8) {9 étapes};
 
-\end{tikzpicture%
+\end{tikzpicture}%
+}
+\caption{Diagramme de s\'{e}quence --- ex\'{e}cution compl\`{e}te d'un pipeline d'Entity Resolution}
+\label{fig:seq-pipeline}
+\end{figure}
 
-\caption{Diagramme de s\'{equence --- ex\'{ecution compl\`{ete d'un pipeline d'Entity Resolution
-\label{fig:seq-pipeline
-\end{figure
+\subsubsection{Diagramme de s\'{e}quence --- r\'{e}solution d'entit\'{e}s}
 
-\subsubsection{Diagramme de s\'{equence --- r\'{esolution d'entit\'{es
-
-\begin{figure[H]
+\begin{figure}[H]
 \centering
-\resize\boxed{0.95\textwidth{!{%
-\begin{tikzpicture[
-  participant/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.6cm, minimum height=0.5cm, align=center, font=\scriptsize, fill=blue!8,
-  db/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.6cm, minimum height=0.5cm, align=center, font=\scriptsize, fill=teal!12,
-  msg/.style={-{Latex[length=1.5mm], thick, font=\tiny,
-  msgdash/.style={-{Latex[length=1.5mm], thick, dashed, font=\tiny,
-  note/.style={rectangle, draw=black, fill=yellow!15, rounded corners=2pt, font=\tiny, align=left, inner sep=3pt
+\resize\boxed{0.95\textwidth}{!}{%
+\begin{tikzpicture}[
+  participant/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.6cm, minimum height=0.5cm, align=center, font=\scriptsize, fill=blue!8},
+  db/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum width=1.6cm, minimum height=0.5cm, align=center, font=\scriptsize, fill=teal!12},
+  msg/.style={-{Latex[length=1.5mm]}, thick, font=\tiny},
+  msgdash/.style={-{Latex[length=1.5mm]}, thick, dashed, font=\tiny},
+  note/.style={rectangle, draw=black, fill=yellow!15, rounded corners=2pt, font=\tiny, align=left, inner sep=3pt}
 ]
 
-\node[participant] (api) at (0, 0) {API;
-\node[participant] (worker) at (3.5, 0) {Worker;
-\node[participant] (splink) at (7, 0) {Splink;
-\node[db] (duckdb) at (10.5, 0) {DuckDB;
+\node[participant] (api) at (0, 0) {API};
+\node[participant] (worker) at (3.5, 0) {Worker};
+\node[participant] (splink) at (7, 0) {Splink};
+\node[db] (duckdb) at (10.5, 0) {DuckDB};
 
 \draw[gray, dashed] (0, -0.4) -- (0, -12);
 \draw[gray, dashed] (3.5, -0.4) -- (3.5, -12);
@@ -398,62 +398,62 @@ Le diagramme suivant illustre l'encha\^{inement des op\'{erations lors de l'ex\'
 \draw[gray, dashed] (10.5, -0.4) -- (10.5, -12);
 
 % Phase 1: Load
-\draw[msg] (api) -- node[above] {1. HTTP request (worker);
-\draw[msg] (worker) -- node[above] {2. Load data (duckdb);
-\draw[msgdash] (duckdb) -- node[below] {3. DataFrame (worker);
+\draw[msg] (api) -- node[above] {1. HTTP request} (worker);
+\draw[msg] (worker) -- node[above] {2. Load data} (duckdb);
+\draw[msgdash] (duckdb) -- node[below] {3. DataFrame} (worker);
 
 % Phase 2: Normalize + Compare
-\draw[msg] (worker) -- node[above] {4. Normalize (worker);
-\draw[msg] (worker) -- node[above] {5. Compare (splink);
-\draw[msg] (splink) -- node[above] {6. EM train (splink);
-\draw[msg] (splink) -- node[above] {7. Pairs (duckdb);
-\draw[msgdash] (duckdb) -- node[below] {8. Scores (splink);
+\draw[msg] (worker) -- node[above] {4. Normalize} (worker);
+\draw[msg] (worker) -- node[above] {5. Compare} (splink);
+\draw[msg] (splink) -- node[above] {6. EM train} (splink);
+\draw[msg] (splink) -- node[above] {7. Pairs} (duckdb);
+\draw[msgdash] (duckdb) -- node[below] {8. Scores} (splink);
 
 % Phase 3: Veto + Match
-\draw[msg] (splink) -- node[above] {9. Veto RC (splink);
-\draw[msg] (splink) -- node[above] {10. Matches (worker);
+\draw[msg] (splink) -- node[above] {9. Veto RC} (splink);
+\draw[msg] (splink) -- node[above] {10. Matches} (worker);
 
 % Phase 4: Cluster + Materialize
-\draw[msg] (worker) -- node[above] {11. Leiden (worker);
-\draw[msg] (worker) -- node[above] {12. Materialize (worker);
-\draw[msg] (worker) -- node[above] {13. Write (duckdb);
-\draw[msgdash] (duckdb) -- node[below] {14. 502 entities (worker);
-\draw[msgdash] (worker) -- node[below] {15. Result (api);
+\draw[msg] (worker) -- node[above] {11. Leiden} (worker);
+\draw[msg] (worker) -- node[above] {12. Materialize} (worker);
+\draw[msg] (worker) -- node[above] {13. Write} (duckdb);
+\draw[msgdash] (duckdb) -- node[below] {14. 502 entities} (worker);
+\draw[msgdash] (worker) -- node[below] {15. Result} (api);
 
-\node[note] at (5.25, -4) {3 EM sessions;
-\node[note] at (8.75, -8) {RC diff $\rightarrow$ reject;
+\node[note] at (5.25, -4) {3 EM sessions};
+\node[note] at (8.75, -8) {RC diff $\rightarrow$ reject};
 
-\end{tikzpicture%
+\end{tikzpicture}%
+}
+\caption{Diagramme de s\'{e}quence --- pipeline de r\'{e}solution d'entit\'{e}s}
+\label{fig:seq-resolution}
+\end{figure}
 
-\caption{Diagramme de s\'{equence --- pipeline de r\'{esolution d'entit\'{es
-\label{fig:seq-resolution
-\end{figure
+\section{Architecture du worker Python}
 
-\section{Architecture du worker Python
+Le worker est une application FastAPI ex\'{e}cutant le pipeline dans un thread s\'{e}par\'{e}.
 
-Le worker est une application FastAPI ex\'{ecutant le pipeline dans un thread s\'{epar\'{e.
-
-\begin{figure[H]
+\begin{figure}[H]
 \centering
-\resize\boxed{0.85\textwidth{!{%
-\begin{tikzpicture[
+\resize\boxed{0.85\textwidth}{!}{%
+\begin{tikzpicture}[
   node distance=0.6cm,
-  module/.style={rectangle, rounded corners=3pt, draw=black, thick, minimum width=2.8cm, minimum height=0.8cm, align=center, font=\scriptsize,
-  mcore/.style={module, fill=violet!12,
-  mdata/.style={module, fill=blue!12,
-  mer/.style={module, fill=orange!12,
-  mcluster/.style={module, fill=teal!12,
-  mentity/.style={module, fill=green!12,
-  arr/.style={-{Latex[length=2mm], thick
+  module/.style={rectangle, rounded corners=3pt, draw=black, thick, minimum width=2.8cm, minimum height=0.8cm, align=center, font=\scriptsize},
+  mcore/.style={module, fill=violet!12},
+  mdata/.style={module, fill=blue!12},
+  mer/.style={module, fill=orange!12},
+  mcluster/.style={module, fill=teal!12},
+  mentity/.style={module, fill=green!12},
+  arr/.style={-{Latex[length=2mm]}, thick}
 ]
 
-\node[mcore] (orch) {Orchestrator\\[-2pt]\footnotesize pipeline/orchestrator.py;
-\node[mdata, below left=0.8cm and 1cm of orch] (load) {Data Loading\\[-2pt]\footnotesize data/loading.py;
-\node[mdata, below=of load] (norm) {Normalization\\[-2pt]\footnotesize data/normalization.py;
-\node[mer, below right=0.8cm and 1cm of orch] (splink) {Splink Engine\\[-2pt]\footnotesize er\_splink/;
-\node[mcluster, below=of splink] (clust) {Clustering\\[-2pt]\footnotesize clustering/ + embedding/;
-\node[mentity, below=0.8cm of norm] (mat) {Materializer\\[-2pt]\footnotesize entities/;
-\node[mcore, below=0.8cm of clust] (ctx) {Context + Logs\\[-2pt]\footnotesize pipeline/context.py;
+\node[mcore] (orch) {Orchestrator\\[-2pt]\footnotesize pipeline/orchestrator.py};
+\node[mdata, below left=0.8cm and 1cm of orch] (load) {Data Loading\\[-2pt]\footnotesize data/loading.py};
+\node[mdata, below=of load] (norm) {Normalization\\[-2pt]\footnotesize data/normalization.py};
+\node[mer, below right=0.8cm and 1cm of orch] (splink) {Splink Engine\\[-2pt]\footnotesize er\_splink/};
+\node[mcluster, below=of splink] (clust) {Clustering\\[-2pt]\footnotesize clustering/ + embedding/};
+\node[mentity, below=0.8cm of norm] (mat) {Materializer\\[-2pt]\footnotesize entities/};
+\node[mcore, below=0.8cm of clust] (ctx) {Context + Logs\\[-2pt]\footnotesize pipeline/context.py};
 
 \draw[arr] (orch) -- (load);
 \draw[arr] (orch) -- (splink);
@@ -463,370 +463,370 @@ Le worker est une application FastAPI ex\'{ecutant le pipeline dans un thread s\
 \draw[arr] (clust) -- (mat);
 \draw[arr] (mat) -- (ctx);
 
-\end{tikzpicture%
+\end{tikzpicture}%
+}
+\caption{Modules du worker Python}
+\label{fig:worker-modules}
+\end{figure}
 
-\caption{Modules du worker Python
-\label{fig:worker-modules
-\end{figure
-
-\begin{table[H]
+\begin{table}[H]
 \centering
-\caption{Modules du worker Python et leurs r\^{oles
-\renewcommand{\arraystretch{1.3
-\begin{tabular{|l|l|p{7cm|
+\caption{Modules du worker Python et leurs r\^{o}les}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|p{7cm}|}
 \hline
-\textbf{Module & \textbf{Fichier & \textbf{R\^{ole \\
+\textbf{Module} & \textbf{Fichier} & \textbf{R\^{o}le} \\
 \hline
-Orchestrateur & \texttt{pipeline/orchestrator.py & Coordonne les 9 \'{etapes, g\`{ere le contexte d'ex\'{ecution \\
+Orchestrateur & \texttt{pipeline/orchestrator.py} & Coordonne les 9 \'{e}tapes, g\`{e}re le contexte d'ex\'{e}cution \\
 \hline
-Chargement & \texttt{data/loading.py & Lecture SQL Server (pyodbc), \'{ecriture de la table de sortie \\
+Chargement & \texttt{data/loading.py} & Lecture SQL Server (pyodbc), \'{e}criture de la table de sortie \\
 \hline
-Normalisation & \texttt{data/normalization.py & Nettoyage + normalisation sp\'{ecifique au domaine \\
+Normalisation & \texttt{data/normalization.py} & Nettoyage + normalisation sp\'{e}cifique au domaine \\
 \hline
-Splink Trainer & \texttt{er\_splink/trainer.py & Cr\'{eation du linker, estimation EM \\
+Splink Trainer & \texttt{er\_splink/trainer.py} & Cr\'{e}ation du linker, estimation EM \\
 \hline
-Splink Predictor & \texttt{er\_splink/predictor.py & G\'{en\'{eration des scores de match \\
+Splink Predictor & \texttt{er\_splink/predictor.py} & G\'{e}n\'{e}ration des scores de match \\
 \hline
-Blocking & \texttt{er\_splink/blocking.py & Construction des r\`{egles de blocage, comparateurs \\
+Blocking & \texttt{er\_splink/blocking.py} & Construction des r\`{e}gles de blocage, comparateurs \\
 \hline
-Clustering & \texttt{clustering/clusterer.py & Composantes connexes (NetworkX) \\
+Clustering & \texttt{clustering/clusterer.py} & Composantes connexes (NetworkX) \\
 \hline
-Embeddings & \texttt{embedding/clustering.py & Embeddings neuronaux, similarit\'{e cosinus, Leiden \\
+Embeddings & \texttt{embedding/clustering.py} & Embeddings neuronaux, similarit\'{e} cosinus, Leiden \\
 \hline
-Mat\'{erialisation & \texttt{entities/materializer.py & IDs stables, attributs canoniques, statuts \\
+Mat\'{e}rialisation & \texttt{entities/materializer.py} & IDs stables, attributs canoniques, statuts \\
 \hline
-Contexte & \texttt{pipeline/context.py & Logs en m\'{emoire, m\'{etriques, rapport d'ex\'{ecution \\
+Contexte & \texttt{pipeline/context.py} & Logs en m\'{e}moire, m\'{e}triques, rapport d'ex\'{e}cution \\
 \hline
-Sch\'{emas & \texttt{models/schemas.py & Mod\`{eles Pydantic : \texttt{PipelineRequest, \texttt{PipelineResult, configs \\
+Sch\'{e}mas & \texttt{models/schemas.py} & Mod\`{e}les Pydantic : \texttt{PipelineRequest}, \texttt{PipelineResult}, configs \\
 \hline
-\end{tabular
-\end{table
+\end{tabular}
+\end{table}
 
-\section{L'architectructure du serveur API
+\section{L'architectructure du serveur API}
 
 Le serveur Express.js (port 3001) expose 74 endpoints REST. Les routes principales :
 
-\begin{table[H]
+\begin{table}[H]
 \centering
-\caption{Principaux endpoints de l'API
-\renewcommand{\arraystretch{1.3
-\begin{tabular{|l|l|p{7cm|
+\caption{Principaux endpoints de l'API}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|p{7cm}|}
 \hline
-\textbf{M\'{ethode & \textbf{Chemin & \textbf{Fonction \\
+\textbf{M\'{e}thode} & \textbf{Chemin} & \textbf{Fonction} \\
 \hline
-GET & \texttt{/api/pipelines & Lister les pipelines \\
+GET & \texttt{/api/pipelines} & Lister les pipelines \\
 \hline
-POST & \texttt{/api/pipelines & Cr\'{eer un pipeline \\
+POST & \texttt{/api/pipelines} & Cr\'{e}er un pipeline \\
 \hline
-POST & \texttt{/api/pipelines/:id/run & Ex\'{ecuter un pipeline \\
+POST & \texttt{/api/pipelines/:id/run} & Ex\'{e}cuter un pipeline \\
 \hline
-GET & \texttt{/api/runs/:id & D\'{etail d'une ex\'{ecution \\
+GET & \texttt{/api/runs/:id} & D\'{e}tail d'une ex\'{e}cution \\
 \hline
-GET & \texttt{/api/runs/:id/progress & SSE : suivi en temps r\'{eel \\
+GET & \texttt{/api/runs/:id/progress} & SSE : suivi en temps r\'{e}el \\
 \hline
-GET & \texttt{/api/entities & Recherche d'entit\'{es (pagin\'{e) \\
+GET & \texttt{/api/entities} & Recherche d'entit\'{e}s (pagin\'{e}) \\
 \hline
-GET & \texttt{/api/entities/:id & D\'{etail d'une entit\'{e (membres, provenance) \\
+GET & \texttt{/api/entities/:id} & D\'{e}tail d'une entit\'{e} (membres, provenance) \\
 \hline
-GET & \texttt{/api/tables & D\'{ecouverte des tables (sources externes) \\
+GET & \texttt{/api/tables} & D\'{e}couverte des tables (sources externes) \\
 \hline
-POST & \texttt{/api/investigations & Cr\'{eer une enqu\^{ete \\
+POST & \texttt{/api/investigations} & Cr\'{e}er une enqu\^{e}te \\
 \hline
-GET & \texttt{/api/investigations/entities/:id/counterparties & Analyse des contreparties \\
+GET & \texttt{/api/investigations/entities/:id/counterparties} & Analyse des contreparties \\
 \hline
-\end{tabular
-\end{table
+\end{tabular}
+\end{table}
 
-\section{Architecture de la base de donn\'{ees PostgreSQL
+\section{Architecture de la base de donn\'{e}es PostgreSQL}
 
-La base \texttt{ercp contient 20 tables organis\'{ees en 4 domaines fonctionnels.
+La base \texttt{ercp} contient 20 tables organis\'{e}es en 4 domaines fonctionnels.
 
-\subsection{Mod\`{ele UML de la base de donn\'{ees
+\subsection{Mod\`{e}le UML de la base de donn\'{e}es}
 
-\begin{figure[H]
+\begin{figure}[H]
 \centering
-\resize\boxed{\textwidth{!{%
-\begin{tikzpicture[
-  entity/.style={rectangle, draw=black, thick, minimum width=2.6cm, font=\small\bfseries, fill=blue!8,
-  attr/.style={font=\scriptsize,
-  pk/.style={font=\scriptsize\bfseries,
-  fk/.style={font=\scriptsize, text=blue!60!black,
-  rel/.style={-{Latex[length=2mm], thick, black!60,
+\resize\boxed{\textwidth}{!}{%
+\begin{tikzpicture}[
+  entity/.style={rectangle, draw=black, thick, minimum width=2.6cm, font=\small\bfseries, fill=blue!8},
+  attr/.style={font=\scriptsize},
+  pk/.style={font=\scriptsize\bfseries},
+  fk/.style={font=\scriptsize, text=blue!60!black},
+  rel/.style={-{Latex[length=2mm]}, thick, black!60},
   node distance=0.6cm
 ]
 
 % Row 1: users, pipelines, pipeline_runs
-\node[entity] (users) at (0,0) {users;
+\node[entity] (users) at (0,0) {users};
 \node[attr, below=0pt of users, anchor=north, align=left] {
-  \textbf{id PK\\
+  \textbf{id} PK\\
   username\\
   password\_hash\\
   role
-;
+};
 
-\node[entity] (pipes) at (5.5,0) {pipelines;
+\node[entity] (pipes) at (5.5,0) {pipelines};
 \node[attr, below=0pt of pipes, anchor=north, align=left] {
-  \textbf{id PK\\
+  \textbf{id} PK\\
   name\\
   status\\
   source\_table\_name\\
   splink\_config JSONB\\
   clustering\_config JSONB\\
-  \textit{user\_id FK
-;
+  \textit{user\_id} FK
+};
 
-\node[entity] (runs) at (11,0) {pipeline\_runs;
+\node[entity] (runs) at (11,0) {pipeline\_runs};
 \node[attr, below=0pt of runs, anchor=north, align=left] {
-  \textbf{id PK\\
+  \textbf{id} PK\\
   name\\
   status\\
   records\_processed\\
   matches\_found\\
   clusters\_created\\
-  \textit{pipeline\_id FK
-;
+  \textit{pipeline\_id} FK
+};
 
 % Row 2: entity_members, entities, pipeline_steps
-\node[entity] (mems) at (0,-5) {entity\_members;
+\node[entity] (mems) at (0,-5) {entity\_members};
 \node[attr, below=0pt of mems, anchor=north, align=left] {
-  \textbf{id PK\\
+  \textbf{id} PK\\
   record\_id\\
   match\_probability\\
   decision\\
   source\_data JSONB\\
-  \textit{entity\_id FK\\
-  \textit{run\_id FK
-;
+  \textit{entity\_id} FK\\
+  \textit{run\_id} FK
+};
 
-\node[entity] (ents) at (5.5,-5) {entities;
+\node[entity] (ents) at (5.5,-5) {entities};
 \node[attr, below=0pt of ents, anchor=north, align=left] {
-  \textbf{id PK\\
+  \textbf{id} PK\\
   entity\_id UNIQUE\\
   canonical\_rc\\
   canonical\_name\\
   record\_count\\
   status\\
-  \textit{run\_id FK
-;
+  \textit{run\_id} FK
+};
 
-\node[entity] (steps) at (11,-5) {pipeline\_steps;
+\node[entity] (steps) at (11,-5) {pipeline\_steps};
 \node[attr, below=0pt of steps, anchor=north, align=left] {
-  \textbf{id PK\\
+  \textbf{id} PK\\
   step\\
   status\\
   records\_in/out\\
   duration\_seconds\\
-  \textit{run\_id FK
-;
+  \textit{run\_id} FK
+};
 
 % Row 3: investigations, entity_relationships, run_logs
-\node[entity] (inv) at (0,-10) {investigations;
+\node[entity] (inv) at (0,-10) {investigations};
 \node[attr, below=0pt of inv, anchor=north, align=left] {
-  \textbf{id PK\\
+  \textbf{id} PK\\
   name\\
   status\\
   investigation\_type\\
-  \textit{subject\_entity\_id FK\\
-  \textit{pipeline\_run\_id FK
-;
+  \textit{subject\_entity\_id} FK\\
+  \textit{pipeline\_run\_id} FK
+};
 
-\node[entity] (rel) at (5.5,-10) {entity\_relationships;
+\node[entity] (rel) at (5.5,-10) {entity\_relationships};
 \node[attr, below=0pt of rel, anchor=north, align=left] {
-  \textbf{id PK\\
+  \textbf{id} PK\\
   relationship\_type\\
   interaction\_count\\
   confidence\_score\\
-  \textit{entity\_a\_id FK\\
-  \textit{entity\_b\_id FK
-;
+  \textit{entity\_a\_id} FK\\
+  \textit{entity\_b\_id} FK
+};
 
-\node[entity] (logs) at (11,-10) {run\_logs;
+\node[entity] (logs) at (11,-10) {run\_logs};
 \node[attr, below=0pt of logs, anchor=north, align=left] {
-  \textbf{id PK\\
+  \textbf{id} PK\\
   stage\\
   level\\
   message\\
   progress\\
-  \textit{run\_id FK
-;
+  \textit{run\_id} FK
+};
 
 % Relationships - clean vertical/horizontal lines
-\draw[rel] (users.south) -- (pipes.north) node[midway, above, font=\scriptsize] {1:N;
-\draw[rel] (pipes.south) -- (ents.north) node[midway, right, font=\scriptsize] {1:N;
-\draw[rel] (runs.south) -- (ents.north) node[midway, left, font=\scriptsize] {1:N;
+\draw[rel] (users.south) -- (pipes.north) node[midway, above, font=\scriptsize] {1:N};
+\draw[rel] (pipes.south) -- (ents.north) node[midway, right, font=\scriptsize] {1:N};
+\draw[rel] (runs.south) -- (ents.north) node[midway, left, font=\scriptsize] {1:N};
 
-\draw[rel] (runs.west) -- (steps.east) node[midway, above, font=\scriptsize] {1:N;
-\draw[rel] (runs.south) -- (logs.north) node[midway, right, font=\scriptsize] {1:N;
+\draw[rel] (runs.west) -- (steps.east) node[midway, above, font=\scriptsize] {1:N};
+\draw[rel] (runs.south) -- (logs.north) node[midway, right, font=\scriptsize] {1:N};
 
-\draw[rel] (ents.west) -- (mems.east) node[midway, above, font=\scriptsize] {1:N;
-\draw[rel] (ents.south) -- (inv.north) node[midway, left, font=\scriptsize] {1:N;
-\draw[rel] (ents.south) -- (rel.north) node[midway, right, font=\scriptsize] {1:N;
+\draw[rel] (ents.west) -- (mems.east) node[midway, above, font=\scriptsize] {1:N};
+\draw[rel] (ents.south) -- (inv.north) node[midway, left, font=\scriptsize] {1:N};
+\draw[rel] (ents.south) -- (rel.north) node[midway, right, font=\scriptsize] {1:N};
 
-\end{tikzpicture%
+\end{tikzpicture}%
+}
+\caption{Mod\`{e}le UML de la base de donn\'{e}es PostgreSQL --- 20 tables, 4 domaines fonctionnels}
+\label{fig:uml-schema}
+\end{figure}
 
-\caption{Mod\`{ele UML de la base de donn\'{ees PostgreSQL --- 20 tables, 4 domaines fonctionnels
-\label{fig:uml-schema
-\end{figure
+\subsection{Domaines fonctionnels}
 
-\subsection{Domaines fonctionnels
-
-\begin{table[H]
+\begin{table}[H]
 \centering
-\caption{Organisation des tables par domaine fonctionnel
-\renewcommand{\arraystretch{1.3
-\begin{tabular{|l|p{4cm|p{7cm|
+\caption{Organisation des tables par domaine fonctionnel}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|p{4cm}|p{7cm}|}
 \hline
-\textbf{Domaine & \textbf{Tables & \textbf{R\^{ole \\
+\textbf{Domaine} & \textbf{Tables} & \textbf{R\^{o}le} \\
 \hline
-Pipeline & \texttt{pipelines, \texttt{pipeline\_runs, \texttt{pipeline\_steps & D\'{efinition, ex\'{ecution et suivi des pipelines \\
+Pipeline & \texttt{pipelines}, \texttt{pipeline\_runs}, \texttt{pipeline\_steps} & D\'{e}finition, ex\'{e}cution et suivi des pipelines \\
 \hline
-Entit\'{es & \texttt{entities, \texttt{entity\_members, \texttt{entity\_clusters & Entit\'{es r\'{esolues, membres, clusters \\
+Entit\'{e}s & \texttt{entities}, \texttt{entity\_members}, \texttt{entity\_clusters} & Entit\'{e}s r\'{e}solues, membres, clusters \\
 \hline
-Enqu\^{etes & \texttt{investigations, \texttt{entity\_relationships, \texttt{investigation\_evidence, \texttt{investigation\_results, \texttt{investigation\_notes, \texttt{investigation\_queries & Moteur d'enqu\^{ete et d'analyse \\
+Enqu\^{e}tes & \texttt{investigations}, \texttt{entity\_relationships}, \texttt{investigation\_evidence}, \texttt{investigation\_results}, \texttt{investigation\_notes}, \texttt{investigation\_queries} & Moteur d'enqu\^{e}te et d'analyse \\
 \hline
-Syst\`{eme & \texttt{users, \texttt{role\_permissions, \texttt{settings, \texttt{audit\_log, \texttt{scripts, \texttt{script\_runs, \texttt{run\_logs, \texttt{data\_sources & Authentification, param\`{etres, tra\c{cabilité \\
+Syst\`{e}me & \texttt{users}, \texttt{role\_permissions}, \texttt{settings}, \texttt{audit\_log}, \texttt{scripts}, \texttt{script\_runs}, \texttt{run\_logs}, \texttt{data\_sources} & Authentification, param\`{e}tres, tra\c{c}abilité \\
 \hline
-\end{tabular
-\end{table
+\end{tabular}
+\end{table}
 
-\section{L'interface op\'{erationnelle --- la plateforme
+\section{L'interface op\'{e}rationnelle --- la plateforme}
 
 La plateforme web comprend 17 pages fonctionnelles.
 
-\subsection{Pipeline Wizard --- configuration interactive
+\subsection{Pipeline Wizard --- configuration interactive}
 
-Le Pipeline Wizard guide l'op\'{erateur \'{a travers 8 \'{etapes de configuration :
+Le Pipeline Wizard guide l'op\'{e}rateur \'{a} travers 8 \'{e}tapes de configuration :
 
-\begin{enumerate
-    \item \textbf{Load : s\'{election de la source de donn\'{ees, sch\'{ema et table
-    \item \textbf{Select : choix des colonnes \`{a inclure
-    \item \textbf{Clean : options de nettoyage (trim, NULLs, d\'{edup)
-    \item \textbf{Normalize : r\`{egles de normalisation (NFC, format date/t\'{el\'{ephone)
-    \item \textbf{Splink : type de liaison, blocage, comparaisons, seuil, it\'{erations EM
-    \item \textbf{Embeddings : activation, mod\`{ele (e5-small/base/large), colonnes textuelles, poids
-    \item \textbf{Cluster : strat\'{egie (CC ou Leiden), seuil d'ar\^{ete, r\'{esolution
-    \item \textbf{Finalize : nom de la table de sortie
-\end{enumerate
+\begin{enumerate}
+    \item \textbf{Load} : s\'{e}lection de la source de donn\'{e}es, sch\'{e}ma et table
+    \item \textbf{Select} : choix des colonnes \`{a} inclure
+    \item \textbf{Clean} : options de nettoyage (trim, NULLs, d\'{e}dup)
+    \item \textbf{Normalize} : r\`{e}gles de normalisation (NFC, format date/t\'{e}l\'{e}phone)
+    \item \textbf{Splink} : type de liaison, blocage, comparaisons, seuil, it\'{e}rations EM
+    \item \textbf{Embeddings} : activation, mod\`{e}le (e5-small/base/large), colonnes textuelles, poids
+    \item \textbf{Cluster} : strat\'{e}gie (CC ou Leiden), seuil d'ar\^{e}te, r\'{e}solution
+    \item \textbf{Finalize} : nom de la table de sortie
+\end{enumerate}
 
-\begin{figure[H]
+\begin{figure}[H]
 \centering
-\includegraphics[width=0.9\textwidth]pipeline_wizard.png
-\caption{Pipeline Wizard --- configuration interactive du pipeline d'Entity Resolution
-\label{fig:screenshot-wizard
-\end{figure
+\includegraphics[width=0.9\textwidth]{images/screenshots/pipeline_wizard.png}
+\caption{Pipeline Wizard --- configuration interactive du pipeline d'Entity Resolution}
+\label{fig:screenshot-wizard}
+\end{figure}
 
-\subsection{Suivi d'ex\'{ecution en temps r\'{eel
+\subsection{Suivi d'ex\'{e}cution en temps r\'{e}el}
 
-Lorsqu'un pipeline est lanc\'{e, la page de suivi affiche :
-\begin{itemize
-    \item L'avancement de chaque \'{etape (barre de progression)
-    \item Les logs en temps r\'{eel via SSE (Server-Sent Events)
-    \item Les m\'{etriques interm\'{ediaires (nombre de paires, clusters, dur\'{ee)
+Lorsqu'un pipeline est lanc\'{e}, la page de suivi affiche :
+\begin{itemize}
+    \item L'avancement de chaque \'{e}tape (barre de progression)
+    \item Les logs en temps r\'{e}el via SSE (Server-Sent Events)
+    \item Les m\'{e}triques interm\'{e}diaires (nombre de paires, clusters, dur\'{e}e)
     \item Un bouton d'annulation
-\end{itemize
+\end{itemize}
 
-\begin{figure[H]
+\begin{figure}[H]
 \centering
-\includegraphics[width=0.9\textwidth]pipeline_monitor.png
-\caption{Suivi d'ex\'{ecution en temps r\'{eel --- logs SSE et progression par \'{etape
-\label{fig:screenshot-monitor
-\end{figure
+\includegraphics[width=0.9\textwidth]{images/screenshots/pipeline_monitor.png}
+\caption{Suivi d'ex\'{e}cution en temps r\'{e}el --- logs SSE et progression par \'{e}tape}
+\label{fig:screenshot-monitor}
+\end{figure}
 
-\subsection{Exploration des entit\'{es
+\subsection{Exploration des entit\'{e}s}
 
-La page Entit\'{es permet de :
-\begin{itemize
-    \item Filtrer par ex\'{ecution (s\'{electeur de run)
-    \item Rechercher par nom d'entit\'{e
-    \item Naviguer vers le d\'{etail de chaque entit\'{e (membres, attributs, activit\'{e)
-    \item Visualiser les 502 entit\'{es r\'{esolues (pagination 200/page)
-\end{itemize
+La page Entit\'{e}s permet de :
+\begin{itemize}
+    \item Filtrer par ex\'{e}cution (s\'{e}lecteur de run)
+    \item Rechercher par nom d'entit\'{e}
+    \item Naviguer vers le d\'{e}tail de chaque entit\'{e} (membres, attributs, activit\'{e})
+    \item Visualiser les 502 entit\'{e}s r\'{e}solues (pagination 200/page)
+\end{itemize}
 
-\begin{figure[H]
+\begin{figure}[H]
 \centering
-\includegraphics[width=0.9\textwidth]entity_detail.png
-\caption{Exploration des entit\'{es r\'{esolues --- 502 entit\'{es depuis 10\,000 d\'{eclarations
-\label{fig:screenshot-entities
-\end{figure
+\includegraphics[width=0.9\textwidth]{images/screenshots/entity_detail.png}
+\caption{Exploration des entit\'{e}s r\'{e}solues --- 502 entit\'{e}s depuis 10\,000 d\'{e}clarations}
+\label{fig:screenshot-entities}
+\end{figure}
 
-\subsection{Moteur d'enqu\^{ete
+\subsection{Moteur d'enqu\^{e}te}
 
-Le moteur d'enqu\^{ete permet d'analyser les relations entre entit\'{es :
-\begin{itemize
-    \item \textbf{Contreparties : identification des entit\'{es li\'{ees par des transactions
-    \item \textbf{Chronologie : \'{evolution temporelle des activit\'{es
-    \item \textbf{Preuves : sources documentaires soutenant les relations
-    \item \textbf{Notes : annotations des enqu\^{eteurs
-\end{itemize
+Le moteur d'enqu\^{e}te permet d'analyser les relations entre entit\'{e}s :
+\begin{itemize}
+    \item \textbf{Contreparties} : identification des entit\'{e}s li\'{e}es par des transactions
+    \item \textbf{Chronologie} : \'{e}volution temporelle des activit\'{e}s
+    \item \textbf{Preuves} : sources documentaires soutenant les relations
+    \item \textbf{Notes} : annotations des enqu\^{e}teurs
+\end{itemize}
 
-\begin{figure[H]
+\begin{figure}[H]
 \centering
-\includegraphics[width=0.9\textwidth]investigation.png
-\caption{Moteur d'enqu\^{ete --- analyse des relations inter-entit\'{es
-\label{fig:screenshot-investigation
-\end{figure
+\includegraphics[width=0.9\textwidth]{images/screenshots/investigation.png}
+\caption{Moteur d'enqu\^{e}te --- analyse des relations inter-entit\'{e}s}
+\label{fig:screenshot-investigation}
+\end{figure}
 
-\subsection{D\'{etail d'une entit\'{e
+\subsection{D\'{e}tail d'une entit\'{e}}
 
-La page de d\'{etail d'une entit\'{e affiche :
-\begin{itemize
+La page de d\'{e}tail d'une entit\'{e} affiche :
+\begin{itemize}
     \item Attributs canoniques (RC, nom, banque, guichet)
-    \item Liste de tous les membres du cluster avec probabilit\'{e de match
+    \item Liste de tous les membres du cluster avec probabilit\'{e} de match
     \item Statut (auto\_approved, review, flagged)
-    \item Historique des d\'{eclarations associ\'{ees
-\end{itemize
+    \item Historique des d\'{e}clarations associ\'{e}es
+\end{itemize}
 
-\begin{figure[H]
+\begin{figure}[H]
 \centering
-\includegraphics[width=0.9\textwidth]entity_detail.png
-\caption{D\'{etail d'une entit\'{e r\'{esolue --- attributs, membres et historique
-\label{fig:screenshot-entity-detail
-\end{figure
+\includegraphics[width=0.9\textwidth]{images/screenshots/entity_detail.png}
+\caption{D\'{e}tail d'une entit\'{e} r\'{e}solue --- attributs, membres et historique}
+\label{fig:screenshot-entity-detail}
+\end{figure}
 
-\subsection{Gestion des pipelines
+\subsection{Gestion des pipelines}
 
-La page Pipelines liste tous les pipelines cr\'{ee\'{es, avec leur statut (draft, running, completed, failed) et les m\'{etriques associ\'{ees.
+La page Pipelines liste tous les pipelines cr\'{e}e\'{e}s, avec leur statut (draft, running, completed, failed) et les m\'{e}triques associ\'{e}es.
 
-\begin{figure[H]
+\begin{figure}[H]
 \centering
-\includegraphics[width=0.9\textwidth]pipelines_list.png
-\caption{Gestion des pipelines --- liste, cr\'{eation et suivi
-\label{fig:screenshot-pipelines
-\end{figure
+\includegraphics[width=0.9\textwidth]{images/screenshots/pipelines_list.png}
+\caption{Gestion des pipelines --- liste, cr\'{e}ation et suivi}
+\label{fig:screenshot-pipelines}
+\end{figure}
 
-\section{Choix technologiques
+\section{Choix technologiques}
 
-\begin{table[H]
+\begin{table}[H]
 \centering
-\caption{Justification des choix technologiques
-\renewcommand{\arraystretch{1.3
-\begin{tabular{|l|l|p{7cm|
+\caption{Justification des choix technologiques}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|p{7cm}|}
 \hline
-\textbf{Technologie & \textbf{Utilisation & \textbf{Justification \\
+\textbf{Technologie} & \textbf{Utilisation} & \textbf{Justification} \\
 \hline
-Splink 4.0.16 & Entity Resolution & Impl\'{ementation production du mod\`{ele Fellegi-Sunter, open-source, backend DuckDB \\
+Splink 4.0.16 & Entity Resolution & Impl\'{e}mentation production du mod\`{e}le Fellegi-Sunter, open-source, backend DuckDB \\
 \hline
-DuckDB 1.5.5 & Backend SQL & Base embarqu\'{ee, rapide pour les calculs analytiques, pas de serveur s\'{epar\'{e \\
+DuckDB 1.5.5 & Backend SQL & Base embarqu\'{e}e, rapide pour les calculs analytiques, pas de serveur s\'{e}par\'{e} \\
 \hline
-NetworkX & Clustering (CC) & Biblioth\`{eque standard pour les graphes, composantes connexes en O(V+E) \\
+NetworkX & Clustering (CC) & Biblioth\`{e}que standard pour les graphes, composantes connexes en O(V+E) \\
 \hline
-igraph + leidenalg & Clustering (Leiden) & Impl\'{ementation rapide de Leiden, 10-100x plus rapide que Louvain \\
+igraph + leidenalg & Clustering (Leiden) & Impl\'{e}mentation rapide de Leiden, 10-100x plus rapide que Louvain \\
 \hline
-sentence-transformers & Embeddings neuronaux & Mod\`{eles pr\'{e-entra\^{in\'{es multilingues, extraction de features s\'{emantiques \\
+sentence-transformers & Embeddings neuronaux & Mod\`{e}les pr\'{e}-entra\^{i}n\'{e}s multilingues, extraction de features s\'{e}mantiques \\
 \hline
-pyodbc & Connecteur SQL Server & Acc\`{es aux donn\'{ees sources MSSQL de l'OdC \\
+pyodbc & Connecteur SQL Server & Acc\`{e}s aux donn\'{e}es sources MSSQL de l'OdC \\
 \hline
-Drizzle ORM & ORM PostgreSQL & Type-safe, migrations, sch\'{ema d\'{eclaratif \\
+Drizzle ORM & ORM PostgreSQL & Type-safe, migrations, sch\'{e}ma d\'{e}claratif \\
 \hline
-React + Vite & Frontend & SPA rapide, HMR, \'{ecosyst\`{eme mature \\
+React + Vite & Frontend & SPA rapide, HMR, \'{e}cosyst\`{e}me mature \\
 \hline
-SSE (Server-Sent Events) & Suivi en temps r\'{eel & Flux unidirectionnel pour les logs d'ex\'{ecution, plus l\'{eger que WebSocket \\
+SSE (Server-Sent Events) & Suivi en temps r\'{e}el & Flux unidirectionnel pour les logs d'ex\'{e}cution, plus l\'{e}ger que WebSocket \\
 \hline
 JWT & Authentification & Standard industry, stateless, scalable \\
 \hline
-\end{tabular
-\end{table
+\end{tabular}
+\end{table}
 
-\section*{Conclusion
+\section*{Conclusion}
 
-Ce chapitre a pr\'{esent\'{e l'impl\'{ementation compl\`{ete de la plateforme : le pipeline d'Entity Resolution \`{a 9 \'{etapes, le worker Python modular, le serveur API \'{a 74 endpoints, la base de donn\'{ees PostgreSQL \'{a 20 tables, et l'interface op\'{erationnelle \'{a 17 pages. L'architectructure resulte directement des d\'{ecisions prises lors des 18+ exp\'{eriences document\'{ees dans le chapitre pr\'{ec\'{edent.
+Ce chapitre a pr\'{e}sent\'{e} l'impl\'{e}mentation compl\`{e}te de la plateforme : le pipeline d'Entity Resolution \`{a} 9 \'{e}tapes, le worker Python modular, le serveur API \'{a} 74 endpoints, la base de donn\'{e}es PostgreSQL \'{a} 20 tables, et l'interface op\'{e}rationnelle \'{a} 17 pages. L'architectructure resulte directement des d\'{e}cisions prises lors des 18+ exp\'{e}riences document\'{e}es dans le chapitre pr\'{e}c\'{e}dent.
