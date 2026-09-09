@@ -137,7 +137,7 @@ Le diagramme suivant montre comment le blocage r\'{e}duit le nombre de paires \`
 
 \begin{figure}[H]
 \centering
-\resize\boxed{0.85\textwidth}{!}{%
+\resizebox{0.85\textwidth}{!}{%
 \begin{tikzpicture}[
   box/.style={rectangle, rounded corners=3pt, draw=black, thick, minimum width=2.5cm, minimum height=1cm, align=center, font=\scriptsize},
   input/.style={box, fill=red!12, draw=red!60!black},
@@ -633,7 +633,7 @@ Alias DO diff\'{e}rent & $\sim$50\,\% & Non seul & Signal secondaire \\
 
 \begin{figure}[H]
 \centering
-\resize\boxed{0.9\textwidth}{!}{%
+\resizebox{0.9\textwidth}{!}{%
 \begin{tikzpicture}[
   box/.style={rectangle, rounded corners=3pt, draw=black, thick, minimum width=3cm, minimum height=1.5cm, align=center, font=\scriptsize},
   good/.style={box, fill=green!8, draw=green!60!black},
@@ -674,7 +674,7 @@ La plateforme est conteneuris\'{e}e via Docker Compose, avec quatre services com
 
 \begin{figure}[H]
 \centering
-\resize\boxed{0.92\textwidth}{!}{%
+\resizebox{0.92\textwidth}{!}{%
 \begin{tikzpicture}[
   node distance=1cm,
   service/.style={rectangle, rounded corners=4pt, draw=black, thick, minimum width=2.5cm, minimum height=1.5cm, align=center, font=\small},
@@ -687,11 +687,11 @@ La plateforme est conteneuris\'{e}e via Docker Compose, avec quatre services com
   port/.style={font=\scriptsize, text=gray!70!black}
 ]
 
-\node[frontend] (fe) {Frontend\\[-2pt]\footnotesize React + Vite\\[-2pt]\port :5174};
-\node[backend, right=2cm of fe] (be) {API Server\\[-2pt]\footnotesize Express.js\\[-2pt]\port :3001};
-\node[worker, right=2cm of be] (wo) {Worker\\[-2pt]\footnotesize FastAPI + Splink\\[-2pt]\port :8001};
-\node[database, below=1.5cm of be] (pg) {PostgreSQL\\[-2pt]\footnotesize ercp\\[-2pt]\port :5544};
-\node[external, below=1.5cm of wo] (mssql) {SQL Server\\[-2pt]\footnotesize Source OdC\\[-2pt]\port :1433};
+\node[frontend] (fe) {Frontend\\[-2pt]\footnotesize React + Vite\\[-2pt]port :5174};
+\node[backend, right=2cm of fe] (be) {API Server\\[-2pt]\footnotesize Express.js\\[-2pt]port :3001};
+\node[worker, right=2cm of be] (wo) {Worker\\[-2pt]\footnotesize FastAPI + Splink\\[-2pt]port :8001};
+\node[database, below=1.5cm of be] (pg) {PostgreSQL\\[-2pt]\footnotesize ercp\\[-2pt]port :5544};
+\node[external, below=1.5cm of wo] (mssql) {SQL Server\\[-2pt]\footnotesize Source OdC\\[-2pt]port :1433};
 
 \draw[arr] (fe) -- node[above, font=\scriptsize] {REST + SSE} (be);
 \draw[arr] (be) -- node[above, font=\scriptsize] {HTTP/JSON} (wo);
