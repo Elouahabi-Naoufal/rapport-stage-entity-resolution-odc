@@ -296,77 +296,7 @@ Pour chaque paire candidate, Splink calcule des scores de similarit\'{e} champ p
 
 \noindent L'approche optimale (seuil 0,95) produit 727 clusters pour 1\,000 entreprises r\'{e}elles. Le recall de 100\,\% signifie qu'aucun vrai match n'est rat\'{e}. Les 273 clusters sur-fusionn\'{e}s (pr\'{e}cision 72,7\,\%) constituent le probl\`{e}me r\'{e}siduel.
 
-\subsection{Phase 3 : raffinement supervis\'{e} avec XGBoost}
-
-Le score de 72,7\,\% de pr\'{e}cision a motiv\'{e} l'exploration d'un classificateur ML de second niveau. XGBoost \'{e}tait le candidat naturel : il g\`{e}re les valeurs manquantes nativement et exploite les signaux comportementaux (montants, pays, op\'{e}rations) que Splink ne voit pas.
-
-\subsubsection{Features construites}
-
-Pour chaque paire candidate $(A, B)$, 11 features \'{e}taient calcul\'{e}es :
-
-\begin{table}[H]
-\centering
-\caption{Features du classificateur XGBoost}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|p{3.5cm}|p{9cm}|}
-\hline
-\textbf{Feature} & \textbf{Description} \\
-\hline
-\texttt{splink\_score} & Probabilit\'{e} de match Splink \\
-\hline
-\texttt{jw\_rc} & JaroWinkler(\texttt{RC\_l}, \texttt{RC\_r}) \\
-\hline
-\texttt{jw\_rs} & JaroWinkler(\texttt{RS\_norm\_l}, \texttt{RS\_norm\_r}) \\
-\hline
-\texttt{jw\_do} & JaroWinkler(\texttt{DO\_l}, \texttt{DO\_r}) \\
-\hline
-\texttt{exact\_bam} & Correspondance CODE\_BANQUE\_BAM \\
-\hline
-\texttt{exact\_centre} & Correspondance CENTRE\_R \\
-\hline
-\texttt{montant\_ratio} & Ratio des montants moyens par op\'{e}rateur \\
-\hline
-\texttt{same\_top\_country} & M\^{e}me pays partenaire le plus fr\'{e}quent \\
-\hline
-\texttt{same\_top\_operation} & M\^{e}me code op\'{e}ration le plus fr\'{e}quent \\
-\hline
-\texttt{ratio\_import\_export} & Ratio SENS=1 / SENS=2 \\
-\hline
-\texttt{rc\_null\_both} & Les deux RC sont NULL \\
-\hline
-\end{tabular}
-\end{table}
-
-\subsubsection{Exp\'{e}riences et r\'{e}sultats}
-
-\textbf{Exp\'{e}rience 0 --- Baseline synth\'{e}tique} : XGBoost sur labels synth\'{e}tiques (m\^{e}me RC = 1, m\^{e}me nom = 1). R\'{e}sultat : F1 = 0,063, ROC-AUC = 0,520 (proche du hasard). Le mod\`{e}le n'apprend rien d'utile.
-
-\textbf{Exp\'{e}rience 1 --- Audit des labels} : 100\,\% des paires positives ont \texttt{rc\_exact=1} OU \texttt{name\_exact=1}. Les labels enseignent la r\`{e}gle triviale ``m\^{e}me RC ou m\^{e}me nom = match''.
-
-\textbf{Exp\'{e}riences 3-7 --- Pseudo-labeling et adjudication} : tous les mod\`{e}les (XGBoost, LightGBM, CatBoost) atteignent F1 = 1,0 en validation crois\'{e}e mais produisent \textbf{0\,\% de pr\'{e}cision} sur les paires ind\'{e}pendamment adjudiqu\'{e}es. Le mod\`{e}le apprend des r\`{e}gles triviales (ville exacte, pr\'{e}fixe de nom) plut\^{o}t que la r\'{e}solution d'entit\'{e}s.
-
-\begin{table}[H]
-\centering
-\caption{Comparaison des mod\`{e}les supervis\'{e}s --- validation crois\'{e}e vs test adversarial}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|l|c|c|c|}
-\hline
-\textbf{Mod\`{e}le} & \textbf{F1 (CV)} & \textbf{AUC (CV)} & \textbf{Pr\'{e}cision adversariale} \\
-\hline
-XGBoost (Exp 0) & 0,063 & 0,520 & --- \\
-\hline
-XGBoost (Exp 5) & 1,000 & 1,000 & 0,000 \\
-\hline
-LightGBM (Exp 8) & 1,000 & 1,000 & 0,000 \\
-\hline
-CatBoost (Exp 9) & 1,000 & 1,000 & 0,000 \\
-\hline
-\end{tabular}
-\end{table}
-
-\noindent\textbf{Conclusion :} les trois mod\`{e}les supervis\'{e}s apprennent des shortcuts triviaux et n'ajoutent aucune valeur. L'approche supervis\'{e} est \textbf{abandonn\'{e}e} au profit du clustering non supervis\'{e}.
-
-\subsection{Phase 4 : clustering non supervis\'{e}}
+\subsection{Phase 3 : clustering non supervis\'{e}}
 
 L'id\'{e}e est de construire un graphe de similarit\'{e} puis d'extraire des communaut\'{e}s sans labels.
 
@@ -416,7 +346,7 @@ Splink + Leiden (0,65/1,5) & 0,000 & 0,238 & 0,887 & 338 & 0,5s \\
 
 \begin{table}[H]
 \centering
-\caption{Synth\`{e}se des 18+ exp\'{e}riences r\'{e}alis\'{e}es}
+\caption{Synth\`{e}se des approches test\'{e}es}
 \renewcommand{\arraystretch}{1.3}
 \begin{tabular}{|p{2.5cm}|p{3cm}|p{3cm}|p{4cm}|}
 \hline
@@ -425,8 +355,6 @@ Splink + Leiden (0,65/1,5) & 0,000 & 0,238 & 0,887 & 338 & 0,5s \\
 D\'{e}terministe & RC exact + nettoyage & 70\,\% couverture & Insuffisant \\
 \hline
 Probabiliste & Splink seul & P=72,7\,\%, R=100\,\% & Retenu (base) \\
-\hline
-Supervis\'{e} & XGBoost/LightGBM/CatBoost & CV=1,0, adversarial=0,0 & Abandonn\'{e} \\
 \hline
 Non supervis\'{e} & TF-IDF + Leiden & F1=0,348, NMI=0,845 & Prometteur \\
 \hline
@@ -439,4 +367,4 @@ Hybride & Splink + Leiden & 502 clusters, 349s & Architecture finale \\
 
 \section*{Conclusion}
 
-Ce chapitre a \'{e}tabli le diagnostic de la probl\'{e}matique et document\'{e} l'exploration syst\'{e}matique des approches : des m\'{e}thodes d\'{e}terministes aux mod\`{e}les supervis\'{e}s, en passant par le clustering non supervis\'{e}. Les 18+ exp\'{e}riences r\'{e}alis\'{e}es d\'{e}montrent que le parcours exp\'{e}rimental est aussi important que l'architecture finale. Le chapitre suivant pr\'{e}sente l'impl\'{e}mentation de l'architecture retenue.
+Ce chapitre a \'{e}tabli le diagnostic de la probl\'{e}matique et document\'{e} l'exploration syst\'{e}matique des approches : des m\'{e}thodes d\'{e}terministes au clustering non supervis\'{e}. Les exp\'{e}riences r\'{e}alis\'{e}es d\'{e}montrent que le parcours exp\'{e}rimental est aussi important que l'architecture finale. Le chapitre suivant pr\'{e}sente l'impl\'{e}mentation de l'architecture retenue.

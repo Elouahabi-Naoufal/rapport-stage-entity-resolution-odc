@@ -28,7 +28,6 @@ La d\'{e}marche m\'{e}thodologique constitue la contribution la plus importante 
 
 \begin{itemize}
     \item Les approches d\'{e}terministes sont insuffisantes pour le bruit r\'{e}el.
-    \item Les mod\`{e}les supervis\'{e}s (XGBoost, LightGBM, CatBoost) atteignent une performance parfaite en validation crois\'{e}e mais \textbf{0\,\% de pr\'{e}cision} sur des donn\'{e}es ind\'{e}pendantes --- ils apprennent des r\`{e}gles triviales.
     \item Le clustering non supervis\'{e} (TF-IDF + Leiden) produit des r\'{e}sultats interpr\'{e}tables sans donn\'{e}es labellis\'{e}es.
     \item La qualit\'{e} du blocage est plus importante que la complexit\'{e} du mod\`{e}le.
     \item La normalisation des champs (date, t\'{e}l\'{e}phone, identifiant) est l'am\'{e}lioration la plus significative (+0,29 F1 sur sant\'{e}).
@@ -68,6 +67,6 @@ L'\textbf{absence de validation sur donn\'{e}es r\'{e}elles} constitue la limite
 \end{itemize}
 
 \bigskip
-\noindent En d\'{e}finitive, ce projet aura permis de d\'{e}montrer qu'une probl\'{e}matique de qualit\'{e} des donn\'{e}es peut '\^{e}tre adress\'{e}e par une approche technique rigoureuse combinant nettoyage de donn\'{e}es, Entity Resolution probabiliste et clustering non supervis\'{e}. La d\'{e}marche m\'{e}thodologique --- 18+ exp\'{e}riences, des mod\`{e}les supervis\'{e}s rejet\'{e}s au clustering retenu --- illustre la valeur d'une investigation syst\'{e}matique o\`{u} chaque \'{e}chec est trait\'{e} comme une information diagnostique. Le benchmark multi-domain a confirm\'{e} que la normalisation des champs est l'am\'{e}lioration la plus impactante, et que le diagnostic blocking vs matching permet d'identifier pr\'{e}cis\'{e}ment o\`{u} concentrer les efforts d'optimisation.
+\noindent En d\'{e}finitive, ce projet aura permis de d\'{e}montrer qu'une probl\'{e}matique de qualit\'{e} des donn\'{e}es peut '\^{e}tre adress\'{e}e par une approche technique rigoureuse combinant nettoyage de donn\'{e}es, Entity Resolution probabiliste et clustering non supervis\'{e}. La d\'{e}marche m\'{e}thodologique --- exploration syst\'{e}matique des approches, choix justifi\'{e}s \`{a} chaque \'{e}tape --- illustre la valeur d'une investigation rigoureuse. Le benchmark multi-domain a confirm\'{e} que la normalisation des champs est l'am\'{e}lioration la plus impactante, et que le diagnostic blocking vs matching permet d'identifier pr\'{e}cis\'{e}ment o\`{u} concentrer les efforts d'optimisation.
 
 \textbf{La plateforme est op\'{e}rationnelle. L'architectructure est solide. La m\'{e}thodologie est reproductible. Les r\'{e}sultats sont valid\'{e}s.}
