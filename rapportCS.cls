@@ -78,9 +78,9 @@
 \end{figure}
 
 % Titre du rapport
-\rule{\linewidth}{0.2 mm} \\[0.2 cm]
+\rule{\linewidth}{0.2 mm} \par\vspace{0.2 cm}
 {\LARGE\bfseries \titre \par} \
-\rule{\linewidth}{0.2 mm} \\[0.4 cm]
+\rule{\linewidth}{0.2 mm} \par\vspace{0.4 cm}
 
 % Nom de l'étudiant
 {\scshape\LARGE \eleve \par} 
