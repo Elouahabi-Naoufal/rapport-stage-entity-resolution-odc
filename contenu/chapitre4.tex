@@ -270,6 +270,133 @@ Le syst\`{e}me supporte l'ex\'{e}cution de plusieurs pipelines simultan\'{e}ment
     \item Les performances obtenues ne constituent pas une estimation directe des performances op\'{e}rationnelles.
 \end{itemize}
 
+\section{Benchmark multi-domain --- \'{e}valuation contr\^{o}l\'{e}e}
+
+Les exp\'{e}riences pr\'{e}c\'{e}dentes \'{e}taient r\'{e}alis\'{e}es sur les donn\'{e}es RFF de l'Office des Changes. Pour valider la g\'{e}n\'{e}ralisabilit\'{e} de l'architecture, un benchmark contr\^{o}l\'{e} a \'{e}t\'{e} d\'{e}velopp\'{e} sur 5 domaines synth\'{e}tiques distincts.
+
+\subsection{Protocole exp\'{e}rimental}
+
+Le laboratoire de benchmark g\'{e}n\`{e}re des donn\'{e}es contr\^{o}l\'{e}es avec v\'{e}rit\'{e} terrain connue :
+
+\begin{table}[H]
+\centering
+\caption{Domaines du benchmark multi-domain}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|p{6cm}|}
+\hline
+\textbf{Domaine} & \textbf{Enregistrements} & \textbf{Entit\'{e}s} & \textbf{Caract\'{e}ristiques} \\
+\hline
+Entreprises & 15\,000 & 5\,000 & Noms, RC, adresses, banques, guichets \\
+\hline
+Personnes & 15\,000 & 5\,000 & Pr\'{e}noms, noms, t\'{e}l\'{e}phones, adresses \\
+\hline
+Sant\'{e} & 15\,000 & 5\,000 & Patient ID, DOB, noms, t\'{e}l\'{e}phones \\
+\hline
+Produits & 15\,000 & 5\,000 & SKU, noms, descriptions, prix \\
+\hline
+Fournisseurs & 15\,000 & 5\,000 & Tax ID, noms, adresses, contacts \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent Le benchmark introduit plus de 38 types de corruption contr\^{o}l\'{e}es couvrant les noms, identifiants, coordonn\'{e}es et adresses, avec 4 niveaux de difficult\'{e} (facile \`{a} tr\`{e}s difficile).
+
+\subsection{Analyse du blocking --- diagnostic cl\'{e}}
+
+La contribution la plus importante du benchmark est la s\'{e}paration du \textbf{blocking recall} (part des vraies paires pr\'{e}sent\'{e}es au matcher) du \textbf{matching recall} (part des candidats correctement identifi\'{e}s par Splink).
+
+\begin{table}[H]
+\centering
+\caption{D\'{e}composition blocking vs matching --- Exp\'{e}rience A (baseline)}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|c|c|l|}
+\hline
+\textbf{Domaine} & \textbf{F1} & \textbf{Pr\'{e}cision} & \textbf{Block. Recall} & \textbf{Match. Recall} & \textbf{Diagnostic} \\
+\hline
+Entreprises & 0,681 & 1,000 & 0,640 & 0,650 & Bottleneck blocage \\
+\hline
+Personnes & 0,550 & 0,404 & 0,747 & 1,000 & Faux m\'{e}langes \\
+\hline
+Sant\'{e} & 0,728 & 0,942 & 0,944 & 0,618 & Bottleneck matching \\
+\hline
+Produits & 0,734 & 1,000 & 0,980 & 0,591 & Bottleneck matching \\
+\hline
+Fournisseurs & 0,635 & 1,000 & 0,729 & 0,557 & Les deux \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent Deux modes d'\'{e}chec distincts \'{e}mergent :
+\begin{itemize}
+    \item \textbf{Bottleneck blocage} (entreprises) : les vraies paires ne deviennent jamais des candidats. Le blocking recall de 64\,\% signifie que 36\,\% des vrais matches sont perdus avant m\^{e}me d'atteindre Splink.
+    \item \textbf{Bottleneck matching} (sant\'{e}, produits) : les vraies paires sont candidats mais Splink les rejette. Le matching recall de 62\,\%/\,59\,\% indique des probl\`{e}mes de normalisation des formats.
+    \item \textbf{Faux m\'{e}langes} (personnes) : la pr\'{e}cision de 40\,\% signifie que 60\,\% des paires accept\'{e}es sont fausses --- les noms g\'{e}n\'{e}riques (Mohamed, Fatima) causent des sur-fusions.
+\end{itemize}
+
+\subsection{Impact de la normalisation}
+
+L'ajout de normalisateurs sp\'{e}cifiques aux champs (date, t\'{e}l\'{e}phone, identifiant) a produit l'am\'{e}lioration la plus significative :
+
+\begin{table}[H]
+\centering
+\caption{Impact de la normalisation sur les 5 domaines}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|c|c|c|}
+\hline
+\textbf{Domaine} & \textbf{F1 avant} & \textbf{F1 apr\`{e}s} & \textbf{$\Delta$ F1} & \textbf{Rappel avant} & \textbf{Rappel apr\`{e}s} \\
+\hline
+Entreprises & 0,681 & 0,681 & +0,000 & 0,517 & 0,517 \\
+\hline
+Personnes & 0,522 & 0,550 & +0,028 & 0,702 & 0,863 \\
+\hline
+Sant\'{e} & 0,439 & 0,728 & \textbf{+0,289} & 0,288 & 0,593 \\
+\hline
+Produits & 0,439 & 0,734 & \textbf{+0,295} & 0,281 & 0,579 \\
+\hline
+Fournisseurs & 0,445 & 0,635 & +0,190 & 0,286 & 0,465 \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent La normalisation de date (\texttt{DD/MM/YYYY} $\rightarrow$ \texttt{YYYY-MM-DD}), de t\'{e}l\'{e}phone (suppression des non-chiffres) et d'identifiant (suppression des non-alphanum\'{e}riques) a \'{e}t\'{e} d\'{e}terminante. Le probl\`{e}me n'\'{e}tait pas ``Splink est mauvais'' mais ``Splink compare des formats diff\'{e}rents''.
+
+\subsection{Exp\'{e}riences contr\^{o}l\'{e}es --- ablation}
+
+\begin{table}[H]
+\centering
+\caption{Synth\`{e}se des exp\'{e}riences du benchmark}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{3cm}|c|c|c|p{4cm}|}
+\hline
+\textbf{Exp\'{e}rience} & \textbf{F1} & \textbf{Pr\'{e}cision} & \textbf{Rappel} & \textbf{Interpr\'{e}tation} \\
+\hline
+A --- Baseline & 0,728 & 0,942 & 0,593 & R\'{e}f\'{e}rence (sant\'{e}) \\
+\hline
+B --- Multi-pass blocking & 0,728 & 0,942 & 0,594 & +1,4\,\% block. recall \\
+\hline
+C --- Token sort & 0,531 & 0,719 & 0,423 & D\'{e}grad\'{e} (pr\'{e}cision -22\,\%) \\
+\hline
+D --- Ensemble scorers & 0,728 & 0,942 & 0,593 & Aucun gain \\
+\hline
+E --- Embeddings & 0,728 & 0,942 & 0,593 & Aucun gain mesurable \\
+\hline
+F --- Cluster safeguards & 0,728 & 0,942 & 0,593 & Aucun effet \`{a} cette \'{e}chelle \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent Les le\c{c}ons cl\'{e}s :
+\begin{itemize}
+    \item Le token sort est trop permissif --- il augmente le rappel mais d\'{e}truit la pr\'{e}cision.
+    \item Les embeddings neuronaux n'am\'{e}liorent pas les m\'{e}triques finales sur ces donn\'{e}es.
+    \item Le multi-pass blocking aide s\'{e}lectivement (entreprises +5,4\,\% recall).
+    \item La normalisation reste l'am\'{e}lioration la plus impactante.
+\end{itemize}
+
+\subsection{Analyse du seuil}
+
+Le sweep de seuil (0,50 $\rightarrow$ 0,95) sur sant\'{e} produit un F1 constant \`{a} 0,439. Les scores Splink sont binaires : soit $>$0,95 (match clair), soit $<$0,50 (non-match). Le probl\`{e}me n'est pas le choix du seuil mais la qualit\'{e} des comparaisons.
+
 \section{Synth\`{e}se finale des exp\'{e}riences}
 
 \begin{table}[H]
@@ -300,9 +427,15 @@ Le syst\`{e}me supporte l'ex\'{e}cution de plusieurs pipelines simultan\'{e}ment
 \hline
 18 & TF-IDF + Leiden (GT) & 0,348 & 0,380 & 170 & Meilleur F1 \\
 \hline
+BM-A & Baseline (5 domaines) & 0,44-0,73 & --- & --- & Diagnostic \\
+\hline
+BM-B & Multi-pass blocking & 0,44-0,73 & --- & --- & +5\,\% block. \\
+\hline
+BM-Norm & + Normalisation & 0,55-0,73 & --- & --- & +0,03--0,30 F1 \\
+\hline
 \end{tabular}
 \end{table}
 
 \section*{Conclusion}
 
-Ce chapitre a d\'{e}montr\'{e} que le pipeline de production (Splink + embeddings + Leiden) produit 502 entit\'{e}s depuis 10\,000 d\'{e}clarations en 349 secondes. Les 18+ exp\'{e}riences r\'{e}alis\'{e}es illustrent le parcours d'ing\'{e}nierie : des approches d\'{e}terministes aux mod\`{e}les supervis\'{e}s (rejet\'{e}s), puis au clustering non supervis\'{e} (retenu). La le\c{c}on principale est que la qualit\'{e} des donn\'{e}es et le blocage sont plus importants que la complexit\'{e} du mod\`{e}le.
+Ce chapitre a d\'{e}montr\'{e} que le pipeline de production (Splink + embeddings + Leiden) produit 502 entit\'{e}s depuis 10\,000 d\'{e}clarations en 349 secondes. Les 18+ exp\'{e}riences r\'{e}alis\'{e}es illustrent le parcours d'ing\'{e}nierie : des approches d\'{e}terministes aux mod\`{e}les supervis\'{e}s (rejet\'{e}s), puis au clustering non supervis\'{e} (retenu). Le benchmark multi-domain a r\'{e}v\'{e}l\'{e} que la normalisation des champs \'{e}tait l'am\'{e}lioration la plus significative (+0,29 F1 sur sant\'{e}), et que le vrai probl\`{e}me \'{e}tait souvent la g\'{e}n\'{e}ration de candidats (blocking) plut\^{o}t que le scoring des paires. La le\c{c}on principale est que la qualit\'{e} des donn\'{e}es et le blocage sont plus importants que la complexit\'{e} du mod\`{e}le.
