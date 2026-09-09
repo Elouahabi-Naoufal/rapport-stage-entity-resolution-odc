@@ -524,6 +524,77 @@ Alias DO diff\'{e}rent & $\sim$50\,\% & Non seul & Signal secondaire \\
 
 Les faux positifs observ\'{e}s concernent des entreprises avec des noms courts et g\'{e}n\'{e}riques. Le veto RC \'{e}limine correctement ces cas sans intervention humaine.
 
+\section{Architecture de d\'{e}ploiement}
+
+\subsection{Architecture Docker}
+
+La plateforme est conteneuris\'{e}e via Docker Compose, avec quatre services communicants :
+
+\begin{figure}[H]
+\centering
+\small
+\begin{tikzpicture}[
+  node distance=1cm,
+  service/.style={rectangle, rounded corners=4pt, draw=black, thick, minimum width=2.5cm, minimum height=1.5cm, align=center, font=\small},
+  frontend/.style={service, fill=blue!12, draw=blue!60!black},
+  backend/.style={service, fill=violet!12, draw=violet!60!black},
+  worker/.style={service, fill=orange!12, draw=orange!60!black},
+  database/.style={service, fill=teal!12, draw=teal!60!black},
+  external/.style={service, fill=red!8, draw=red!60!black, dashed},
+  arr/.style={-{Latex[length=2.5mm]}, thick},
+  port/.style={font=\scriptsize, text=gray!70!black}
+]
+
+\node[frontend] (fe) {Frontend\\[-2pt]\footnotesize React + Vite\\[-2pt]\port :5174};
+\node[backend, right=2cm of fe] (be) {API Server\\[-2pt]\footnotesize Express.js\\[-2pt]\port :3001};
+\node[worker, right=2cm of be] (wo) {Worker\\[-2pt]\footnotesize FastAPI + Splink\\[-2pt]\port :8001};
+\node[database, below=1.5cm of be] (pg) {PostgreSQL\\[-2pt]\footnotesize ercp\\[-2pt]\port :5544};
+\node[external, below=1.5cm of wo] (mssql) {SQL Server\\[-2pt]\footnotesize Source OdC\\[-2pt]\port :1433};
+
+\draw[arr] (fe) -- node[above, font=\scriptsize] {REST + SSE} (be);
+\draw[arr] (be) -- node[above, font=\scriptsize] {HTTP/JSON} (wo);
+\draw[arr] (be) -- node[right, font=\scriptsize] {Drizzle ORM} (pg);
+\draw[arr, dashed] (wo) -- node[right, font=\scriptsize] {pyodbc} (mssql);
+
+\node[font=\small\bfseries] at (5.5, 2) {Architecture Docker Compose --- 4 services};
+
+\end{tikzpicture}
+\caption{Architecture de d\'{e}ploiement Docker --- communication inter-services}
+\label{fig:docker-arch}
+\end{figure}
+
+\subsection{Sp\'{e}cifications de conteneurisation}
+
+\begin{table}[H]
+\centering
+\caption{Configuration des conteneurs Docker}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|l|p{5cm}|}
+\hline
+\textbf{Service} & \textbf{Image} & \textbf{Ports} & \textbf{D\'{e}pendances} \\
+\hline
+Frontend & Node.js 22 & 5174:5174 & Build statique, Nginx \\
+\hline
+API & Node.js 22 & 3001:3001 & PostgreSQL, JWT Auth \\
+\hline
+Worker & Python 3.14 & 8001:8001 & MSSQL (pyodbc), Splink, DuckDB \\
+\hline
+PostgreSQL & postgres:16 & 5544:5432 & Volume persistant \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Perspectives de d\'{e}ploiement Cloud}
+
+L'architecture modulaire permet un passage \`{a} l'\'{e}chelle Cloud (AWS) :
+\begin{itemize}
+    \item \textbf{Frontend} : Amazon S3 + CloudFront (distribution CDN)
+    \item \textbf{API} : AWS ECS/Fargate (conteneurs serverless)
+    \item \textbf{Worker} : AWS ECS/Fargate avec scaling automatique
+    \item \textbf{PostgreSQL} : Amazon RDS (managed database)
+    \item \textbf{MSSQL} : connexion VPN DirectConnect vers l'OdC
+\end{itemize}
+
 \section{Limites et perspectives}
 
 \subsection{Limites}
