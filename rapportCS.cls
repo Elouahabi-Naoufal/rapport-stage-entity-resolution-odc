@@ -87,7 +87,7 @@
 \vspace{0.3cm}
 
 % Parcours de l'étudiant
-{\scshape \mention \\ \filiere \\ \master \par} 
+{\scshape \mention \par \filiere \par \master \par} 
 \vspace{0.3cm}
 
 % Dates
@@ -97,21 +97,21 @@
 % Représentants de l'étudiant
 \begin{minipage}{0.4\textwidth}
 	\begin{flushleft} 
-	\emph{\textbf{Tuteur EMSI :}}\\ 
-    \tuteuruniv \\ 
+	\emph{\textbf{Tuteur EMSI :}}\par
+    \tuteuruniv \par 
 	\end{flushleft}
 \end{minipage}
 ~
 \begin{minipage}{0.4\textwidth}
 	\begin{flushright} 
-	\emph{\textbf{Tuteur Entreprise :}} \\
-	 \tuteurentreprise \\
+\emph{\textbf{Tuteur Entreprise :}}\par
+    \tuteurentreprise \par
 	\end{flushright}
 \end{minipage}\par\vspace{0.4cm}
 ~
     \begin{minipage}{0.4\textwidth}
     \begin{center}
-        \emph{\textbf{Membres du Jury :}} \\[0.1cm]
+        \emph{\textbf{Membres du Jury :}} \par
         \tuteurjury
     \end{center}
 \end{minipage}
