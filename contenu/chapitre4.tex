@@ -556,27 +556,6 @@ EM training & Int\'{e}gr\'{e} & Manuel & Int\'{e}gr\'{e} \\
 \end{tabular}
 \end{table}
 
-\subsection{Strat\'{e}gies de clustering}
-
-\begin{table}[H]
-\centering
-\caption{Comparaison des strat\'{e}gies de clustering}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|p{2.5cm}|c|c|c|p{3cm}|}
-\hline
-\textbf{M\'{e}thode} & \textbf{Clusters} & \textbf{Bruit} & \textbf{Dur\'{e}e} & \textbf{Avantage} \\
-\hline
-Connected Components & 220--715 & 0\,\% & 0,5s & D\'{e}terministe \\
-\hline
-Leiden (r=1,0) & 124--166 & 0\,\% & 2,8s & Granularit\'{e} contr\^{o}lable \\
-\hline
-Leiden (r=2,0) & 170 & 0\,\% & 4,4s & Meilleur F1 \\
-\hline
-HDBSCAN & 116--155 & 1\,\% & 32s & D\'{e}tection bruit \\
-\hline
-\end{tabular}
-\end{table}
-
 \subsection{Vectorisation des noms}
 
 \begin{table}[H]
@@ -686,37 +665,6 @@ Alias DO diff\'{e}rent & $\sim$50\,\% & Non seul & Signal secondaire \\
 \subsection{Concurrence}
 
 Le syst\`{e}me supporte l'ex\'{e}cution de plusieurs pipelines simultan\'{e}ment. Aucun verrou, mutex ou s\'{e}maphore n'existe dans l'architectructure. Chaque ex\'{e}cution dispose d'un contexte isol\'{e} dans le worker Python (thread pool FastAPI). La seule limitation est la capacit\'{e} CPU/RAM du processus Python unique.
-
-\section{Analyse des erreurs}
-
-\subsection{Types de corruption et r\'{e}cup\'{e}rabilit\'{e}}
-
-\begin{table}[H]
-\centering
-\caption{Impact des types de corruption}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|p{3.5cm}|c|c|p{5cm}|}
-\hline
-\textbf{Type} & \textbf{Fr\'{e}quence} & \textbf{R\'{e}cup\'{e}rable} & \textbf{M\'{e}canisme} \\
-\hline
-RC pr\'{e}fixe \texttt{RC/} & 5,0\,\% & Oui & JaroWinkler $\geq$ 0,95 \\
-\hline
-RC espace/tiret & 6,0\,\% & Oui & JaroWinkler $\geq$ 0,90 \\
-\hline
-RC null & 8,0\,\% & Partiellement & R\`{e}gles de fallback \\
-\hline
-Nom tronqu\'{e} & $\sim$15\,\% & Oui & JaroWinkler g\`{e}re bien \\
-\hline
-Variante forme juridique & $\sim$8\,\% & Partiellement & JW $<$ 0,92 possible \\
-\hline
-Alias DO diff\'{e}rent & $\sim$50\,\% & Non seul & Signal secondaire \\
-\hline
-\end{tabular}
-\end{table}
-
-\subsection{Cas difficiles --- fronti\`{e}re du matcher}
-
-Les faux positifs observ\'{e}s concernent des entreprises avec des noms courts et g\'{e}n\'{e}riques. Le veto RC \'{e}limine correctement ces cas sans intervention humaine.
 
 \section{Architecture de d\'{e}ploiement}
 
