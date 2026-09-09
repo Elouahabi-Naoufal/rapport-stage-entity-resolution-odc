@@ -158,9 +158,9 @@ Les objectifs assignés à ce stage de fin d'année sont les suivants :
     \item \textbf{Analyser la problématique} : étudier la structure de la base \texttt{Datamart\_CommerceExterieur}, identifier les champs affectés par les incohérences d'identifiants, et quantifier l'impact sur la qualité des données.
     \item \textbf{Concevoir un pipeline de nettoyage} : normaliser les champs bruités (\texttt{RC}, \texttt{RAISON\_SOCIALE}, \texttt{DONNEUR\_ORDRE}) avant tout traitement algorithmique.
     \item \textbf{Implémenter un pipeline d'Entity Resolution} : déployer Splink (modèle de Fellegi-Sunter avec algorithme EM) pour regrouper automatiquement les déclarations appartenant au même opérateur.
-    \item \textbf{Développer un classificateur ML} : entraîner un modèle XGBoost sur les cas difficiles que Splink ne résout pas par similarité textuelle seule.
+    \item \textbf{Enrichir par clustering non supervis\'{e} } : compl\'{e}ter le matching probabiliste par du clustering (composantes connexes, Leiden) et des contraintes d'identit\'{e} d\'{e}terministes.
     \item \textbf{Concevoir un mode incrémental} : permettre le traitement des nouvelles déclarations au fil de l'eau sans retraitement de l'historique complet.
-    \item \textbf{Évaluer rigoureusement} : construire un jeu de données synthétique avec vérité terrain et mesurer les performances (précision, rappel, F1-score).
+    \item \textbf{Évaluer rigoureusement} : construire un jeu de données synthétique avec vérité terrain et mesurer les performances (précision, rappel, F1-score) sur 5 domaines.
 \end{enumerate}
 
 \subsection{Compétences mobilisées}
@@ -169,7 +169,7 @@ Ce projet mobilise un ensemble de compétences à l'intersection de plusieurs do
 
 \begin{itemize}
     \item \textbf{Ingénierie des données} : modélisation de bases de données SQL Server, nettoyage et normalisation de données, génération de données synthétiques réalistes
-    \item \textbf{Machine Learning} : modèles probabilistes (Fellegi-Sunter, EM), classification supervisée (XGBoost), évaluation de modèles (précision, rappel, F1)
+    \item \textbf{Machine Learning} : mod\`{e}les probabilistes (Fellegi-Sunter, EM), clustering non supervis\'{e} (Leiden, composantes connexes), \'{e}valuation de mod\`{e}les (pr\'{e}cision, rappel, F1)
     \item \textbf{Connaissance métier} : compréhension du domaine des opérations de change, des formules bancaires RFF, et des contraintes réglementaires de l'OdC
     \item \textbf{Gestion de projet} : documentation technique, architecture logicielle, conception d'un pipeline de production
 \end{itemize}
@@ -296,12 +296,12 @@ S6--S8 &
 \hline
 \rowcolor{teal!15}
 \textbf{Ph.1} --- Recherche &
-Lecture IGOC/DDB, analyse schéma, état de l'art ER/Splink/XGBoost &
+Lecture IGOC/DDB, analyse sch\'{e}ma, \'{e}tat de l'art ER/Splink &
 Architecture définie \\
 \hline
 \rowcolor{orange!10}
 \textbf{Ph.2} --- ML &
-Générateur données, nettoyage RC, Splink v1 (échec), Splink v2, XGBoost, DuckDB &
+G\'{e}n\'{e}rateur donn\'{e}es, nettoyage RC, Splink v1 (\'{e}chec), Splink v2, DuckDB &
 Pipeline ML (P = 72,7\,\%, R = 100\,\%) \\
 \hline
 \rowcolor{blue!10}

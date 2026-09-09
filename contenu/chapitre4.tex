@@ -1,28 +1,290 @@
-\chapter{R\'{e}sultats, Exp\'{e}riences et Le\c{c}ons d'Ing\'{e}nierie}
+\chapter{Conception, Impl\'{e}mentation et Validation}
 
-Ce chapitre pr\'{e}sente les r\'{e}sultats quantitatifs des 18+ exp\'{e}riences r\'{e}alis\'{e}es, l'analyse des erreurs, et les le\c{c}ons d'ing\'{e}nierie tir\'{e}es du projet.
+Ce chapitre pr\'{e}sente la conception architecturale du pipeline d'Entity Resolution, les choix algorithmiques justifi\'{e}s, l'impl\'{e}mentation technique, et la validation exp\'{e}rimentale sur donn\'{e}es r\'{e}elles et synth\'{e}tiques.
 
-\section{Dataset de r\'{e}f\'{e}rence}
+\section{Cadre th\'{e}orique}
 
-\subsection{Donn\'{e}es r\'{e}elles}
+\subsection{Mod\`{e}le Fellegi-Sunter}
+
+Le pipeline repose sur le mod\`{e}le probabiliste de Fellegi et Sunter (1969), fondement th\'{e}orique de l'Entity Resolution. Pour chaque paire de records $(r_i, r_j)$, le mod\`{e}le calcule un score de similarit\'{e} :
+
+\[
+\log \frac{P(\gamma \in \Gamma_M \mid r_i, r_j)}{P(\gamma \in \Gamma_U \mid r_i, r_j)} = \sum_{k=1}^{n} \log \frac{P(\gamma_k \mid \Gamma_M)}{P(\gamma_k \mid \Gamma_U)}
+\]
+
+o\`{u} $\gamma_k$ est la $k$-i\`{e}me comparaison entre les attributs, $\Gamma_M$ l'ensemble des paires correspondantes et $\Gamma_U$ l'ensemble des paires non-correspondantes. Les poids sont estim\'{e}s par l'algorithme EM (Expectation-Maximization).
+
+\subsection{Similarit\'{e} Jaro-Winkler}
+
+La comparaison des cha\^{i}nes de caract\`{e}res utilise la distance de Jaro-Winkler, d\'{e}finie pour deux cha\^{i}nes $s_1$ et $s_2$ :
+
+\[
+\text{JW}(s_1, s_2) = \text{Jaro}(s_1, s_2) + \ell \cdot p \cdot (1 - \text{Jaro}(s_1, s_2))
+\]
+
+o\`{u} $\ell$ est la longueur du pr\'{e}fixe commun (max 4) et $p = 0,1$ le facteur d'\'{e}chelle. Cette m\'{e}trique est particulièrement adapt\'{e}e aux noms d'entreprises car elle pénalise les transpositions locales tout en tol\'{e}rant les pr\'{e}fixes communs.
+
+\subsection{Vectorisation TF-IDF}
+
+La repr\'{e}sentation vectorielle des noms utilise TF-IDF (Term Frequency-Inverse Document Frequency) :
+
+\[
+\text{TF-IDF}(t, d) = \text{TF}(t, d) \cdot \log \frac{N}{\text{DF}(t)}
+\]
+
+o\`{u} $N$ est le nombre total de documents et $\text{DF}(t)$ le nombre de documents contenant le terme $t$. Cette approche est plus adapt\'{e}e que les embeddings neuronaux pour les noms d'entreprises marocaines car elle capture les termes discriminants (``SARL'', ``STE'', ``MASR'') sans n\'{e}cessiter d'entra\^{i}nement.
+
+\subsection{Algorithme de Leiden}
+
+Le clustering utilise l'algorithme de Leiden (Traag \textit{et al.}, 2019), am\'{e}lioration de l'algorithme de Louvain :
+
+\begin{enumerate}
+    \item \textbf{Initialisation} : chaque n\oe{}ud dans sa propre communaut\'{e}.
+    \item \textbf{Phase locale} : d\'{e}placer chaque n\oe{}ud vers la communaut\'{e} maximisant le gain de modularit\'{e}.
+    \item \textbf{Agr\'{e}gation} : cr\'{e}er un graphe condens\'{e} o\`{u} chaque communaut\'{e} devient un n\oe{}ud.
+    \item \textbf{R\'{e}finition} : fusionner les sous-communaut\'{e}s pour garantir des communaut\'{e}s bien connect\'{e}es.
+\end{enumerate}
+
+\noindent La complexit\'{e} temporelle est $O(n \log n)$, contre $O(n^2)$ pour HDBSCAN, ce qui le rend adapt\'{e} aux grands volumes.
+
+\section{Architecture du pipeline}
+
+\subsection{Vue d'ensemble}
+
+Le pipeline est d\'{e}compos\'{e} en 9 \'{e}tapes s\'{e}quentielles, chacune ind\'{e}pendante et testable :
+
+\begin{enumerate}
+    \item \textbf{Chargement} : extraction depuis MSSQL avec strat\'{e}gie hybride \_R / dirty.
+    \item \textbf{S\'{e}lection} : choix des colonnes pertinentes pour l'Entity Resolution.
+    \item \textbf{Nettoyage} : normalisation lexicale (casse, Unicode, ponctuation).
+    \item \textbf{Normalisation} : normalisation s\'{e}mantique (dates, t\'{e}l\'{e}phones, identifiants).
+    \item \textbf{Splink} : estimation probabiliste des paires par mod\`{e}le Fellegi-Sunter.
+    \item \textbf{Identit\'{e} } : application des contraintes d\'{e}terministes (veto, matching garanti).
+    \item \textbf{Embeddings} : enrichissement par similarit\'{e} s\'{e}mantique neurale.
+    \item \textbf{Clustering} : formation des entit\'{e}s par composantes connexes + Leiden.
+    \item \textbf{Mat\'{e}rialisation} : cr\'{e}ation de la table d'entit\'{e}s r\'{e}solues.
+\end{enumerate}
+
+\subsection{Justification des choix technologiques}
+
+\begin{table}[H]
+\centering
+\caption{Justification des choix technologiques}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{3cm}|p{3cm}|p{7cm}|}
+\hline
+\textbf{Composant} & \textbf{Technologie} & \textbf{Justification} \\
+\hline
+Frontend & React 18 + TypeScript + Vite & SPA typ\'{e}e, hot reload, build optimis\'{e} \\
+\hline
+API & Express.js + TypeScript & REST + SSE, validation de sch\'{e}ma, proxies SSE temps r\'{e}el \\
+\hline
+Worker & Python 3.14 + FastAPI + Splink 4 & Calcul scientifique, ML, typage strict \\
+\hline
+Base de donn\'{e}es & PostgreSQL + Drizzle ORM & ACID, JSON natif, sch\'{e}ma typ\'{e} \\
+\hline
+Donn\'{e}es & MSSQL (OdC) + pyodbc & Connexion directe,\, pas de copie suppl\'{e}mentaire \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Communication inter-services}
+
+Les services communiquent par HTTP/JSON avec deux protocoles :
+\begin{itemize}
+    \item \textbf{REST} : pour les op\'{e}rations synchrones (CRUD, configuration).
+    \item \textbf{SSE} (Server-Sent Events) : pour le suivi temps r\'{e}el des pipelines en cours d'ex\'{e}cution.
+\end{itemize}
+
+\noindent Le worker Python expose un thread pool FastAPI permettant l'ex\'{e}cution concurrente de plusieurs pipelines sans verrou global.
+
+\section{Choix algorithmiques et leur validation}
+
+\subsection{Strat\'{e}gie de blocage}
+
+Le blocage est l'\'{e}tape la plus critique du pipeline. Les r\`{e}gles de blocage d\'{e}terminent quelles paires seront compar\'{e}es. Un blocage trop large g\'{e}n\`{e}re trop de candidats (co\^{u}t computo­tionnel), trop restrictif perd des vrais matches.
+
+\subsubsection{R\`{e}gles de blocage impl\'{e}ment\'{e}es}
+
+\begin{table}[H]
+\centering
+\caption{R\`{e}gles de blocage du pipeline}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{5cm}|p{3cm}|p{5cm}|}
+\hline
+\textbf{R\`{e}gle} & \textbf{Type} & \textbf{Justification} \\
+\hline
+\texttt{substr(name, 1, 3)} & N-gramme & Capture les 3 premi\`{e}res lettres du nom \\
+\hline
+\texttt{substr(name, 1, 4)} & N-gramme & Compl\'{e}mentaire au pr\'{e}c\'{e}dent \\
+\hline
+\texttt{substr(name, -3)} & Suffixe & Les terminaisons (``SARL'', ``STE'') \\
+\hline
+\texttt{soundex(name)} & Phon\'{e}tique & Erreurs de transcription \\
+\hline
+\texttt{metaphone(name)} & Phon\'{e}tique & Alternative au Soundex \\
+\hline
+\texttt{substr(rc, 1, 4)} & Identifiant & Le RC est un identifiant unique \\
+\hline
+\texttt{substr(rc, -4)} & Identifiant & Compl\'{e}mentaire \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Diagnostic du blocking}
+
+Le benchmark multi-domain a permis de s\'{e}parer le \textbf{blocking recall} (part des vraies paires pr\'{e}sent\'{e}es au matcher) du \textbf{matching recall} (part des candidats correctement identifi\'{e}s par Splink) :
+
+\begin{table}[H]
+\centering
+\caption{D\'{e}composition blocking vs matching --- 5 domaines}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|c|c|l|}
+\hline
+\textbf{Domaine} & \textbf{F1} & \textbf{Pr\'{e}cision} & \textbf{Block. Recall} & \textbf{Match. Recall} & \textbf{Diagnostic} \\
+\hline
+Entreprises & 0,681 & 1,000 & 0,640 & 0,650 & Bottleneck blocage \\
+\hline
+Personnes & 0,550 & 0,404 & 0,747 & 1,000 & Faux m\'{e}langes \\
+\hline
+Sant\'{e} & 0,728 & 0,942 & 0,944 & 0,618 & Bottleneck matching \\
+\hline
+Produits & 0,734 & 1,000 & 0,980 & 0,591 & Bottleneck matching \\
+\hline
+Fournisseurs & 0,635 & 1,000 & 0,729 & 0,557 & Les deux \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent Trois modes d'\'{e}chec distincts \'{e}mergent :
+\begin{itemize}
+    \item \textbf{Bottleneck blocage} (entreprises) : les vraies paires ne deviennent jamais des candidats. 36\,\% des vrais matches sont perdus avant d'atteindre Splink.
+    \item \textbf{Bottleneck matching} (sant\'{e}, produits) : les vraies paires sont candidats mais Splink les rejette. Le matching recall de 62\,\%/\,59\,\% indique des probl\`{e}mes de normalisation.
+    \item \textbf{Faux m\'{e}langes} (personnes) : la pr\'{e}cision de 40\,\% signifie que 60\,\% des paires accept\'{e}es sont fausses.
+\end{itemize}
+
+\subsection{Normalisation des donn\'{e}es}
+
+La normalisation est l'am\'{e}lioration la plus significative du pipeline. Trois normalisateurs sp\'{e}cifiques ont \'{e}t\'{e} impl\'{e}ment\'{e}es :
+
+\begin{table}[H]
+\centering
+\caption{Normalisateurs impl\'{e}ment\'{e}s}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{3cm}|p{4cm}|p{6cm}|}
+\hline
+\textbf{Champ} & \textbf{R\`{e}gle} & \textbf{Justification} \\
+\hline
+Date & \texttt{DD/MM/YYYY} $\rightarrow$ \texttt{YYYY-MM-DD} & Formats h\'{e}t\'{e}rog\`{e}nes dans les d\'{e}clarations \\
+\hline
+T\'{e}l\'{e}phone & Suppression des non-chiffres & Espaces, tirets, parenth\`{e}ses \\
+\hline
+Identifiant & Suppression des non-alphanum\'{e}riques, majuscules & RC avec pr\'{e}fixe \texttt{RC/} ou espaces \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Impact quantitatif}
+
+\begin{table}[H]
+\centering
+\caption{Impact de la normalisation sur les 5 domaines}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|c|c|c|}
+\hline
+\textbf{Domaine} & \textbf{F1 avant} & \textbf{F1 apr\`{e}s} & \textbf{$\Delta$ F1} & \textbf{Rappel avant} & \textbf{Rappel apr\`{e}s} \\
+\hline
+Entreprises & 0,681 & 0,681 & +0,000 & 0,517 & 0,517 \\
+\hline
+Personnes & 0,522 & 0,550 & +0,028 & 0,702 & 0,863 \\
+\hline
+Sant\'{e} & 0,439 & 0,728 & \textbf{+0,289} & 0,288 & 0,593 \\
+\hline
+Produits & 0,439 & 0,734 & \textbf{+0,295} & 0,281 & 0,579 \\
+\hline
+Fournisseurs & 0,445 & 0,635 & +0,190 & 0,286 & 0,465 \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent Le probl\`{e}me n'\'{e}tait pas ``Splink est mauvais'' mais ``Splink compare des formats diff\'{e}rents''. La normalisation de date, t\'{e}l\'{e}phone et identifiant a \'{e}t\'{e} d\'{e}terminante, avec un gain maximal de +0,295 F1 sur les produits.
+
+\subsection{Contraintes d'identit\'{e} }
+
+Le pipeline int\`{e}gre des contraintes d\'{e}terministes qui compl\`{e}tent le mod\`{e}le probabiliste :
+
+\begin{itemize}
+    \item \textbf{Veto RC} : si deux records ont des RC non-nuls et diff\'{e}rents, la paire est rejet\'{e}e. Cette r\`{e}gle \'{e}limine les faux positifs caus\'{e}s par des noms g\'{e}n\'{e}riques (``PARIS SAS'' vs ``PARIS SARL STE'').
+    \item \textbf{Matching d\'{e}terministe} : si deux records partagent la m\^{e}me valeur RC, ils sont automatiquement fusionn\'{e}s.
+\end{itemize}
+
+\subsubsection{Validation}
+
+\begin{table}[H]
+\centering
+\caption{Faux positifs \'{e}limin\'{e}s par le veto RC}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|l|c|}
+\hline
+\textbf{Nom\_l} & \textbf{Nom\_r} & \textbf{RC diff\'{e}rents} & \textbf{Score Splink} \\
+\hline
+CHAUVET STE & CHAUVEAU STE & Oui & 0,998 \\
+\hline
+MAURY SARL & MAURY SARL AU & Oui & 0,979 \\
+\hline
+PARIS SAS & PARIS SARL STE & Oui & 0,936 \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent Le veto RC \'{e}limine correctement ces cas sans intervention humaine.
+
+\subsection{Clustering}
+
+Deux strat\'{e}gies de clustering ont \'{e}t\'{e} \'{e}valu\'{e}es :
+
+\begin{table}[H]
+\centering
+\caption{Comparaison des strat\'{e}gies de clustering}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{M\'{e}thode} & \textbf{Clusters} & \textbf{Bruit \%} & \textbf{Dur\'{e}e} & \textbf{Complexit\'{e}} \\
+\hline
+Connected Components & 220--715 & 0,0\,\% & 0,5s & $O(n)$ \\
+\hline
+Leiden (r=1,0) & 124--166 & 0,0\,\% & 2,8--4,4s & $O(n \log n)$ \\
+\hline
+HDBSCAN & 116--155 & 0,9--1,1\,\% & 32s & $O(n^2)$ \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent Leiden a \'{e}t\'{e} retenu car il offre un compromis optimal entre qualit\'{e} des clusters et performance. HDBSCAN est trop lent pour les grands volumes, et les composantes connexes seules ne suffisent pas pour les cas ambigus.
+
+\section{Validation exp\'{e}rimentale}
+
+\subsection{Donn\'{e}es de r\'{e}f\'{e}rence}
+
+\subsubsection{Donn\'{e}es r\'{e}elles}
 
 Les donn\'{e}es source proviennent de la table \texttt{RFF.formule\_P\_clean} contenant 2\,500\,000 d\'{e}clarations. Les exp\'{e}riences ont \'{e}t\'{e} r\'{e}alis\'{e}es sur un \'{e}chantillon de 10\,000 d\'{e}clarations (349 d\'{e}clarations/entreprise en moyenne).
 
-\subsection{Donn\'{e}es ground truth}
+\subsubsection{Donn\'{e}es ground truth}
 
 Le fichier \texttt{ground\_truth.csv} contient 520 entit\'{e}s r\'{e}elles avec la correspondance \texttt{ID\_FORMULE} $\rightarrow$ \texttt{company\_id}. Ce fichier n'est jamais utilis\'{e} pendant l'entra\^{i}nement --- uniquement pour l'\'{e}valuation.
 
-\section{R\'{e}sultats des exp\'{e}riences supervis\'{e}es (Exp 0-9)}
+\subsection{Exp\'{e}riences supervis\'{e}es (Exp 0-9) --- justification de l'abandon}
 
-\subsection{Exp\'{e}rience 0 --- Baseline synth\'{e}tique}
+\subsubsection{Exp\'{e}rience 0 --- Baseline synth\'{e}tique}
 
 XGBoost entra\^{i}n\'{e} sur des labels synth\'{e}tiques (m\^{e}me RC = 1, m\^{e}me nom = 1) produit un F1 = 0,063 et un ROC-AUC = 0,520 --- proche du hasard.
 
-\subsection{Exp\'{e}rience 1 --- Audit des labels}
+\subsubsection{Exp\'{e}rience 1 --- Audit des labels}
 
 L'analyse r\'{e}v\`{e}le que 100\,\% des paires positives ont \texttt{rc\_exact=1} OU \texttt{name\_exact=1}. Les labels enseignent la r\`{e}gle triviale : ``m\^{e}me RC ou m\^{e}me nom = match''. Le mod\`{e}le n'a rien \`{a} apprendre.
 
-\subsection{Exp\'{e}riences 3-7 --- Pseudo-labeling}
+\subsubsection{Exp\'{e}riences 3-7 --- Pseudo-labeling}
 
 Diff\'{e}rentes strat\'{e}gies de pseudo-labeling ont \'{e}t\'{e} test\'{e}es :
 \begin{itemize}
@@ -34,7 +296,7 @@ Diff\'{e}rentes strat\'{e}gies de pseudo-labeling ont \'{e}t\'{e} test\'{e}es :
 
 \noindent Dans tous les cas, le mod\`{e}le atteint une performance parfaite en validation crois\'{e}e.
 
-\subsection{Exp\'{e}rience 7 --- Test adversarial}
+\subsubsection{Exp\'{e}rience 7 --- Test adversarial}
 
 495 paires UNKNOWN sont adjudiqu\'{e}es ind\'{e}pendamment par un humain :
 \begin{itemize}
@@ -45,7 +307,7 @@ Diff\'{e}rentes strat\'{e}gies de pseudo-labeling ont \'{e}t\'{e} test\'{e}es :
 
 \noindent Le mod\`{e}le produit des faux positifs en toute confiance. \textbf{Z\'{e}ro valeur ajout\'{e}e.}
 
-\subsection{Exp\'{e}riences 8-9 --- LightGBM et CatBoost}
+\subsubsection{Exp\'{e}riences 8-9 --- LightGBM et CatBoost}
 
 \begin{table}[H]
 \centering
@@ -62,11 +324,11 @@ CatBoost (Exp 9) & 1,000 & 1,000 & 0,000 \\
 \end{tabular}
 \end{table}
 
-\noindent Les trois mod\`{e}les apprennent des shortcuts triviaux. L'approche supervis\'{e} est \textbf{abandonn\'{e}e}.
+\noindent Les trois mod\`{e}les apprennent des shortcuts triviaux. L'approche supervis\'{e} est \textbf{abandonn\'{e}e} car sans labels de qualit\'{e}, les mod\`{e}les de gradient boosting n'ajoutent aucune valeur.
 
-\section{R\'{e}sultats des exp\'{e}riences non supervis\'{e}es (Exp 10-18)}
+\subsection{Exp\'{e}riences non supervis\'{e}es (Exp 10-18) --- validation de l'architecture}
 
-\subsection{Exp\'{e}rience 10 --- Splink seul (baseline)}
+\subsubsection{Exp\'{e}rience 10 --- Splink seul (baseline)}
 
 \begin{table}[H]
 \centering
@@ -87,7 +349,7 @@ CatBoost (Exp 9) & 1,000 & 1,000 & 0,000 \\
 \end{tabular}
 \end{table}
 
-\subsection{Exp\'{e}riences 11-13 --- Embeddings + clustering}
+\subsubsection{Exp\'{e}riences 11-13 --- Embeddings + clustering}
 
 \begin{table}[H]
 \centering
@@ -110,7 +372,7 @@ PCA + HDBSCAN & comp=16, mcs=20 & 126 & 2,1\,\% & 1,5s \\
 \end{tabular}
 \end{table}
 
-\subsection{Exp\'{e}riences 14-17 --- Ensembles Splink + embeddings}
+\subsubsection{Exp\'{e}riences 14-17 --- Ensembles Splink + embeddings}
 
 \begin{table}[H]
 \centering
@@ -129,7 +391,7 @@ Contrastive + Splink + Leiden & 0,3/0,5 & 954 & \textbf{0,0465} & 6,7s \\
 \end{tabular}
 \end{table}
 
-\subsection{Exp\'{e}rience 18 --- \'{e}valuation ground truth}
+\subsubsection{Exp\'{e}rience 18 --- \'{e}valuation ground truth}
 
 L'exp\'{e}rience 18 est la seule \`{a} utiliser le ground truth (520 entit\'{e}s r\'{e}elles) :
 
@@ -161,7 +423,75 @@ Splink CC (seuil=0,65) & 0,000 & 0,238 & 0,887 & 0,000 & 338 \\
     \item Le NMI \'{e}lev\'{e} (0,887) de Splink CC indique une bonne qualit\'{e} de segmentation m\^{e}me si le F1 est nul.
 \end{itemize}
 
-\section{R\'{e}sultats de la plateforme --- pipeline production}
+\subsection{Benchmark multi-domain --- validation de la g\'{e}n\'{e}ralisabilit\'{e}}
+
+Le benchmark contr\^{o}l\'{e} valide la g\'{e}n\'{e}ralisabilit\'{e} de l'architecture sur 5 domaines synth\'{e}tiques distincts.
+
+\subsubsection{Protocole exp\'{e}rimental}
+
+\begin{table}[H]
+\centering
+\caption{Domaines du benchmark multi-domain}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|p{6cm}|}
+\hline
+\textbf{Domaine} & \textbf{Enregistrements} & \textbf{Entit\'{e}s} & \textbf{Caract\'{e}ristiques} \\
+\hline
+Entreprises & 15\,000 & 5\,000 & Noms, RC, adresses, banques, guichets \\
+\hline
+Personnes & 15\,000 & 5\,000 & Pr\'{e}noms, noms, t\'{e}l\'{e}phones, adresses \\
+\hline
+Sant\'{e} & 15\,000 & 5\,000 & Patient ID, DOB, noms, t\'{e}l\'{e}phones \\
+\hline
+Produits & 15\,000 & 5\,000 & SKU, noms, descriptions, prix \\
+\hline
+Fournisseurs & 15\,000 & 5\,000 & Tax ID, noms, adresses, contacts \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent Le benchmark introduit plus de 38 types de corruption contr\^{o}l\'{e}es couvrant les noms, identifiants, coordonn\'{e}es et adresses, avec 4 niveaux de difficult\'{e} (facile \`{a} tr\`{e}s difficile).
+
+\subsubsection{Exp\'{e}riences d'ablation}
+
+\begin{table}[H]
+\centering
+\caption{Synth\`{e}se des exp\'{e}riences du benchmark}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{3cm}|c|c|c|p{4cm}|}
+\hline
+\textbf{Exp\'{e}rience} & \textbf{F1} & \textbf{Pr\'{e}cision} & \textbf{Rappel} & \textbf{Interpr\'{e}tation} \\
+\hline
+A --- Baseline & 0,728 & 0,942 & 0,593 & R\'{e}f\'{e}rence (sant\'{e}) \\
+\hline
+B --- Multi-pass blocking & 0,728 & 0,942 & 0,594 & +1,4\,\% block. recall \\
+\hline
+C --- Token sort & 0,531 & 0,719 & 0,423 & D\'{e}grad\'{e} (pr\'{e}cision -22\,\%) \\
+\hline
+D --- Ensemble scorers & 0,728 & 0,942 & 0,593 & Aucun gain \\
+\hline
+E --- Embeddings & 0,728 & 0,942 & 0,593 & Aucun gain mesurable \\
+\hline
+F --- Cluster safeguards & 0,728 & 0,942 & 0,593 & Aucun effet \`{a} cette \'{e}chelle \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Le\c{c}ons cl\'{e}s :}
+\begin{itemize}
+    \item Le token sort est trop permissif --- il augmente le rappel mais d\'{e}truit la pr\'{e}cision.
+    \item Les embeddings neuronaux n'am\'{e}liorent pas les m\'{e}triques finales sur ces donn\'{e}es.
+    \item Le multi-pass blocking aide s\'{e}lectivement (entreprises +5,4\,\% recall).
+    \item La normalisation reste l'am\'{e}lioration la plus impactante.
+\end{itemize}
+
+\subsubsection{Analyse du seuil}
+
+Le sweep de seuil (0,50 $\rightarrow$ 0,95) sur sant\'{e} produit un F1 constant \`{a} 0,439. Les scores Splink sont binaires : soit $>$0,95 (match clair), soit $<$0,50 (non-match). Le probl\`{e}me n'est pas le choix du seuil mais la qualit\'{e} des comparaisons.
+
+\section{Plateforme op\'{e}rationnelle}
+
+\subsection{R\'{e}sultats du pipeline de production}
 
 Le pipeline de production (Splink + embeddings + Leiden) sur 10\,000 enregistrements :
 
@@ -187,6 +517,33 @@ Dur\'{e}e similarit\'{e} cosinus & 0,8s (vectoris\'{e}e) \\
 \hline
 \end{tabular}
 \end{table}
+
+\subsection{Architecture technique}
+
+\begin{table}[H]
+\centering
+\caption{Sp\'{e}cifications techniques de la plateforme}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|}
+\hline
+\textbf{Composant} & \textbf{Sp\'{e}cification} \\
+\hline
+Frontend & React 18, TypeScript, Vite, Tailwind CSS, Radix UI \\
+\hline
+API & Express.js, 74 endpoints REST + SSE \\
+\hline
+Worker & Python 3.14, FastAPI, Splink 4, DuckDB \\
+\hline
+Base de donn\'{e}es & PostgreSQL, 20 tables, Drizzle ORM \\
+\hline
+Interface & 17 pages, wizard 10 \'{e}tapes, 7 onglets Splink \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Concurrence}
+
+Le syst\`{e}me supporte l'ex\'{e}cution de plusieurs pipelines simultan\'{e}ment. Aucun verrou, mutex ou s\'{e}maphore n'existe dans l'architectructure. Chaque ex\'{e}cution dispose d'un contexte isol\'{e} dans le worker Python (thread pool FastAPI). La seule limitation est la capacit\'{e} CPU/RAM du processus Python unique.
 
 \section{Analyse des erreurs}
 
@@ -217,52 +574,11 @@ Alias DO diff\'{e}rent & $\sim$50\,\% & Non seul & Signal secondaire \\
 
 \subsection{Cas difficiles --- fronti\`{e}re du matcher}
 
-Les faux positifs observ\'{e}s concernent des entreprises avec des noms courts et g\'{e}n\'{e}riques :
+Les faux positifs observ\'{e}s concernent des entreprises avec des noms courts et g\'{e}n\'{e}riques. Le veto RC \'{e}limine correctement ces cas sans intervention humaine.
 
-\begin{table}[H]
-\centering
-\caption{Faux positifs observ\'{e}s (entreprises diff\'{e}rentes, noms similaires)}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|l|l|l|c|}
-\hline
-\textbf{Nom\_l} & \textbf{Nom\_r} & \textbf{RC diff\'{e}rents} & \textbf{Score Splink} \\
-\hline
-CHAUVET STE & CHAUVEAU STE & Oui & 0,998 \\
-\hline
-MAURY SARL & MAURY SARL AU & Oui & 0,979 \\
-\hline
-PARIS SAS & PARIS SARL STE & Oui & 0,936 \\
-\hline
-\end{tabular}
-\end{table}
+\section{Limites et perspectives}
 
-\noindent Le veto RC \'{e}limine correctement ces cas.
-
-\section{Le\c{c}ons d'ing\'{e}nierie}
-
-\begin{enumerate}
-    \item \textbf{Le blocage fa\c{c}onne tout} : les r\`{e}gles de blocage entra\^{i}nent le mod\`{e}le EM. Un mauvais blocage enseigne de mauvaises le\c{c}ons qui corrompent toutes les pr\'{e}dictions en aval.
-
-    \item \textbf{Mesurer avant d'agir} : un script de diagnostic du blocage (mesure des paires g\'{e}n\'{e}r\'{e}es par r\`{e}gle) prend 10 minutes et r\'{e}v\`{e}le imm\'{e}diatement les m\'{e}ga-blocs.
-
-    \item \textbf{Les contraintes dures battent les features douces} : la r\`{e}gle de veto RC est une logique m\'{e}tier triviale mais \'{e}limine toute une classe d'erreurs.
-
-    \item \textbf{Les donn\'{e}es synth\'{e}tiques doivent '\^{e}tre algorithmiquement r\'{e}alistes} : des donn\'{e}es visuellement plausibles peuvent \^{e}tre toxiques pour un algorithme ML.
-
-    \item \textbf{La strat\'{e}gie hybride \_R / dirty est indispensable} : les anciens enregistrements sans colonnes \texttt{\_R} doivent \^{e}tre trait\'{e}s par des r\`{e}gles de fallback.
-
-    \item \textbf{Les mod\`{e}les supervis\'{e}s apprennent des shortcuts} : sans labels de qualit\'{e}, XGBoost/LightGBM/CatBoost apprennent des r\`{e}gles triviales et n'ajoutent aucune valeur.
-
-    \item \textbf{Le clustering non supervis\'{e} est plus robuste} : TF-IDF + Leiden produit des r\'{e}sultats interpr\'{e}tables sans donn\'{e}es labellis\'{e}es.
-
-    \item \textbf{La vectorisation est critique} : le calcul de similarit\'{e} cosinus pour 237\,000 paires est pass\'{e} de 30 minutes (boucle) \`{a} 0,8s (matrice numpy).
-\end{enumerate}
-
-\section{Dynamique d'ex\'{e}cution concurrente}
-
-Le syst\`{e}me supporte l'ex\'{e}cution de plusieurs pipelines simultan\'{e}ment. Aucun verrou, mutex ou s\'{e}maphore n'existe dans l'architectructure. Chaque ex\'{e}cution dispose d'un contexte isol\'{e} dans le worker Python (thread pool FastAPI). La seule limitation est la capacit\'{e} CPU/RAM du processus Python unique.
-
-\section{Limites de l'\'{e}valuation}
+\subsection{Limites}
 
 \begin{itemize}
     \item Les donn\'{e}es synth\'{e}tiques ne reproduisent pas n\'{e}cessairement toutes les sp\'{e}cificit\'{e}s des donn\'{e}es r\'{e}elles.
@@ -270,172 +586,40 @@ Le syst\`{e}me supporte l'ex\'{e}cution de plusieurs pipelines simultan\'{e}ment
     \item Les performances obtenues ne constituent pas une estimation directe des performances op\'{e}rationnelles.
 \end{itemize}
 
-\section{Benchmark multi-domain --- \'{e}valuation contr\^{o}l\'{e}e}
+\subsection{Perspectives}
 
-Les exp\'{e}riences pr\'{e}c\'{e}dentes \'{e}taient r\'{e}alis\'{e}es sur les donn\'{e}es RFF de l'Office des Changes. Pour valider la g\'{e}n\'{e}ralisabilit\'{e} de l'architecture, un benchmark contr\^{o}l\'{e} a \'{e}t\'{e} d\'{e}velopp\'{e} sur 5 domaines synth\'{e}tiques distincts.
-
-\subsection{Protocole exp\'{e}rimental}
-
-Le laboratoire de benchmark g\'{e}n\`{e}re des donn\'{e}es contr\^{o}l\'{e}es avec v\'{e}rit\'{e} terrain connue :
-
-\begin{table}[H]
-\centering
-\caption{Domaines du benchmark multi-domain}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|l|c|c|p{6cm}|}
-\hline
-\textbf{Domaine} & \textbf{Enregistrements} & \textbf{Entit\'{e}s} & \textbf{Caract\'{e}ristiques} \\
-\hline
-Entreprises & 15\,000 & 5\,000 & Noms, RC, adresses, banques, guichets \\
-\hline
-Personnes & 15\,000 & 5\,000 & Pr\'{e}noms, noms, t\'{e}l\'{e}phones, adresses \\
-\hline
-Sant\'{e} & 15\,000 & 5\,000 & Patient ID, DOB, noms, t\'{e}l\'{e}phones \\
-\hline
-Produits & 15\,000 & 5\,000 & SKU, noms, descriptions, prix \\
-\hline
-Fournisseurs & 15\,000 & 5\,000 & Tax ID, noms, adresses, contacts \\
-\hline
-\end{tabular}
-\end{table}
-
-\noindent Le benchmark introduit plus de 38 types de corruption contr\^{o}l\'{e}es couvrant les noms, identifiants, coordonn\'{e}es et adresses, avec 4 niveaux de difficult\'{e} (facile \`{a} tr\`{e}s difficile).
-
-\subsection{Analyse du blocking --- diagnostic cl\'{e}}
-
-La contribution la plus importante du benchmark est la s\'{e}paration du \textbf{blocking recall} (part des vraies paires pr\'{e}sent\'{e}es au matcher) du \textbf{matching recall} (part des candidats correctement identifi\'{e}s par Splink).
-
-\begin{table}[H]
-\centering
-\caption{D\'{e}composition blocking vs matching --- Exp\'{e}rience A (baseline)}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|l|c|c|c|c|l|}
-\hline
-\textbf{Domaine} & \textbf{F1} & \textbf{Pr\'{e}cision} & \textbf{Block. Recall} & \textbf{Match. Recall} & \textbf{Diagnostic} \\
-\hline
-Entreprises & 0,681 & 1,000 & 0,640 & 0,650 & Bottleneck blocage \\
-\hline
-Personnes & 0,550 & 0,404 & 0,747 & 1,000 & Faux m\'{e}langes \\
-\hline
-Sant\'{e} & 0,728 & 0,942 & 0,944 & 0,618 & Bottleneck matching \\
-\hline
-Produits & 0,734 & 1,000 & 0,980 & 0,591 & Bottleneck matching \\
-\hline
-Fournisseurs & 0,635 & 1,000 & 0,729 & 0,557 & Les deux \\
-\hline
-\end{tabular}
-\end{table}
-
-\noindent Deux modes d'\'{e}chec distincts \'{e}mergent :
 \begin{itemize}
-    \item \textbf{Bottleneck blocage} (entreprises) : les vraies paires ne deviennent jamais des candidats. Le blocking recall de 64\,\% signifie que 36\,\% des vrais matches sont perdus avant m\^{e}me d'atteindre Splink.
-    \item \textbf{Bottleneck matching} (sant\'{e}, produits) : les vraies paires sont candidats mais Splink les rejette. Le matching recall de 62\,\%/\,59\,\% indique des probl\`{e}mes de normalisation des formats.
-    \item \textbf{Faux m\'{e}langes} (personnes) : la pr\'{e}cision de 40\,\% signifie que 60\,\% des paires accept\'{e}es sont fausses --- les noms g\'{e}n\'{e}riques (Mohamed, Fatima) causent des sur-fusions.
+    \item Validation du pipeline sur un \'{e}chantillon de donn\'{e}es r\'{e}elles avec revue manuelle des clusters par les experts m\'{e}tier.
+    \item Optimisation des performances pour le traitement de 2\,500\,000 d\'{e}clarations.
+    \item Int\'{e}gration du pipeline dans le processus de chargement d\'{e}cadeire des d\'{e}clarations.
+    \item Am\'{e}lioration du blocking pour les domaines \`{a} faible recall (entreprises, fournisseurs) par ajout de r\`{e}gles de blocage sur t\'{e}l\'{e}phone et email.
+    \item Rapprochement automatis\'{e} entre les clusters d'op\'{e}rateurs et la table \texttt{OPERATEUR\_REF}.
+    \item Extension du pipeline aux donn\'{e}es RCC.
 \end{itemize}
 
-\subsection{Impact de la normalisation}
-
-L'ajout de normalisateurs sp\'{e}cifiques aux champs (date, t\'{e}l\'{e}phone, identifiant) a produit l'am\'{e}lioration la plus significative :
+\section{Synth\`{e}se}
 
 \begin{table}[H]
 \centering
-\caption{Impact de la normalisation sur les 5 domaines}
+\caption{Synth\`{e}se des contributions du chapitre}
 \renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|l|c|c|c|c|c|}
+\begin{tabular}{|p{4cm}|p{9cm}|}
 \hline
-\textbf{Domaine} & \textbf{F1 avant} & \textbf{F1 apr\`{e}s} & \textbf{$\Delta$ F1} & \textbf{Rappel avant} & \textbf{Rappel apr\`{e}s} \\
+\textbf{Contribution} & \textbf{R\'{e}sultat} \\
 \hline
-Entreprises & 0,681 & 0,681 & +0,000 & 0,517 & 0,517 \\
+Architecture en 9 \'{e}tapes & Pipeline modulaire, chaque \'{e}tape ind\'{e}pendante et testable \\
 \hline
-Personnes & 0,522 & 0,550 & +0,028 & 0,702 & 0,863 \\
+Normalisation s\'{e}mantique & +0,29 F1 sur sant\'{e}, +0,295 sur produits \\
 \hline
-Sant\'{e} & 0,439 & 0,728 & \textbf{+0,289} & 0,288 & 0,593 \\
+Diagnostic blocking & S\'{e}paration blocking/matching recall, identification des goulots d'\'{e}tranglement \\
 \hline
-Produits & 0,439 & 0,734 & \textbf{+0,295} & 0,281 & 0,579 \\
+Contraintes d'identit\'{e} & Veto RC \'{e}limine les faux positifs n\'{e}ologiques \\
 \hline
-Fournisseurs & 0,445 & 0,635 & +0,190 & 0,286 & 0,465 \\
+Benchmark 5 domaines & Validation de la g\'{e}n\'{e}ralisabilit\'{e} avec 38+ types de corruption \\
+\hline
+Plateforme op\'{e}rationnelle & 17 pages, 74 endpoints, 20 tables, wizard 10 \'{e}tapes \\
 \hline
 \end{tabular}
 \end{table}
 
-\noindent La normalisation de date (\texttt{DD/MM/YYYY} $\rightarrow$ \texttt{YYYY-MM-DD}), de t\'{e}l\'{e}phone (suppression des non-chiffres) et d'identifiant (suppression des non-alphanum\'{e}riques) a \'{e}t\'{e} d\'{e}terminante. Le probl\`{e}me n'\'{e}tait pas ``Splink est mauvais'' mais ``Splink compare des formats diff\'{e}rents''.
-
-\subsection{Exp\'{e}riences contr\^{o}l\'{e}es --- ablation}
-
-\begin{table}[H]
-\centering
-\caption{Synth\`{e}se des exp\'{e}riences du benchmark}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|p{3cm}|c|c|c|p{4cm}|}
-\hline
-\textbf{Exp\'{e}rience} & \textbf{F1} & \textbf{Pr\'{e}cision} & \textbf{Rappel} & \textbf{Interpr\'{e}tation} \\
-\hline
-A --- Baseline & 0,728 & 0,942 & 0,593 & R\'{e}f\'{e}rence (sant\'{e}) \\
-\hline
-B --- Multi-pass blocking & 0,728 & 0,942 & 0,594 & +1,4\,\% block. recall \\
-\hline
-C --- Token sort & 0,531 & 0,719 & 0,423 & D\'{e}grad\'{e} (pr\'{e}cision -22\,\%) \\
-\hline
-D --- Ensemble scorers & 0,728 & 0,942 & 0,593 & Aucun gain \\
-\hline
-E --- Embeddings & 0,728 & 0,942 & 0,593 & Aucun gain mesurable \\
-\hline
-F --- Cluster safeguards & 0,728 & 0,942 & 0,593 & Aucun effet \`{a} cette \'{e}chelle \\
-\hline
-\end{tabular}
-\end{table}
-
-\noindent Les le\c{c}ons cl\'{e}s :
-\begin{itemize}
-    \item Le token sort est trop permissif --- il augmente le rappel mais d\'{e}truit la pr\'{e}cision.
-    \item Les embeddings neuronaux n'am\'{e}liorent pas les m\'{e}triques finales sur ces donn\'{e}es.
-    \item Le multi-pass blocking aide s\'{e}lectivement (entreprises +5,4\,\% recall).
-    \item La normalisation reste l'am\'{e}lioration la plus impactante.
-\end{itemize}
-
-\subsection{Analyse du seuil}
-
-Le sweep de seuil (0,50 $\rightarrow$ 0,95) sur sant\'{e} produit un F1 constant \`{a} 0,439. Les scores Splink sont binaires : soit $>$0,95 (match clair), soit $<$0,50 (non-match). Le probl\`{e}me n'est pas le choix du seuil mais la qualit\'{e} des comparaisons.
-
-\section{Synth\`{e}se finale des exp\'{e}riences}
-
-\begin{table}[H]
-\centering
-\caption{Synth\`{e}se des 18+ exp\'{e}riences --- parcours exp\'{e}rimental complet}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|p{2cm}|p{3cm}|c|c|c|p{3cm}|}
-\hline
-\textbf{Exp \#} & \textbf{Approche} & \textbf{F1} & \textbf{ARI} & \textbf{Clusters} & \textbf{D\'{e}cision} \\
-\hline
-0 & XGBoost synth\'{e}tique & 0,063 & --- & 436 & Abandonn\'{e} \\
-\hline
-1-7 & Pseudo-labeling & 1,000 & --- & --- & Overfitting \\
-\hline
-8 & LightGBM & 1,000 & --- & --- & 0\,\% adv. prec. \\
-\hline
-9 & CatBoost & 1,000 & --- & --- & 0\,\% adv. prec. \\
-\hline
-10 & Splink seul & --- & --- & 220-715 & Retenu \\
-\hline
-11 & Emb + HDBSCAN & --- & --- & 116-155 & Lent \\
-\hline
-12 & Emb + Leiden & --- & --- & 124-166 & Prometteur \\
-\hline
-15 & Splink + Leiden & --- & --- & 249-731 & Retenu \\
-\hline
-17 & Contrastive + Splink + Leiden & --- & --- & 234-954 & Meilleur accord \\
-\hline
-18 & TF-IDF + Leiden (GT) & 0,348 & 0,380 & 170 & Meilleur F1 \\
-\hline
-BM-A & Baseline (5 domaines) & 0,44-0,73 & --- & --- & Diagnostic \\
-\hline
-BM-B & Multi-pass blocking & 0,44-0,73 & --- & --- & +5\,\% block. \\
-\hline
-BM-Norm & + Normalisation & 0,55-0,73 & --- & --- & +0,03--0,30 F1 \\
-\hline
-\end{tabular}
-\end{table}
-
-\section*{Conclusion}
-
-Ce chapitre a d\'{e}montr\'{e} que le pipeline de production (Splink + embeddings + Leiden) produit 502 entit\'{e}s depuis 10\,000 d\'{e}clarations en 349 secondes. Les 18+ exp\'{e}riences r\'{e}alis\'{e}es illustrent le parcours d'ing\'{e}nierie : des approches d\'{e}terministes aux mod\`{e}les supervis\'{e}s (rejet\'{e}s), puis au clustering non supervis\'{e} (retenu). Le benchmark multi-domain a r\'{e}v\'{e}l\'{e} que la normalisation des champs \'{e}tait l'am\'{e}lioration la plus significative (+0,29 F1 sur sant\'{e}), et que le vrai probl\`{e}me \'{e}tait souvent la g\'{e}n\'{e}ration de candidats (blocking) plut\^{o}t que le scoring des paires. La le\c{c}on principale est que la qualit\'{e} des donn\'{e}es et le blocage sont plus importants que la complexit\'{e} du mod\`{e}le.
+\noindent Ce chapitre a d\'{e}montr\'{e} que l'Entity Resolution pour les donn\'{e}es de l'OdC n'est pas un probl\`{e}me de mod\`{e}le mais un probl\`{e}me de donn\'{e}es et de blocage. La normalisation des champs, le diagnostic du blocking, et les contraintes d'identit\'{e} sont les trois piliers qui permettent d'atteindre des r\'{e}sultats op\'{e}rationnels. Le pipeline de production produit 502 entit\'{e}s depuis 10\,000 d\'{e}clarations en 349 secondes, sans donn\'{e}es labellis\'{e}es.

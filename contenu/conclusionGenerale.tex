@@ -7,24 +7,24 @@
 
 Au terme de ce projet de fin d'ann\'{e}e consacr\'{e} \`{a} l'\textbf{apport de l'Entity Resolution et du Machine Learning dans l'am\'{e}lioration de la qualit\'{e} des donn\'{e}es des op\'{e}rateurs de change \`{a} l'Office des Changes}, plusieurs enseignements fondamentaux ont pu '\^{e}tre d\'{e}gag\'{e}s.
 
-Ce rapport a permis, dans un premier temps, de pr\'{e}senter le cadre institutionnel de l'Office des Changes, dont la strat\'{e}gie 2025--2029 place la digitalisation et le contr\^{o}le intelligent au c\oe{}ur de ses ambitions. Dans un second temps, l'analyse approfondie de la table \texttt{RFF.formule\_P\_clean} --- avec ses 50 colonnes, son architecture duale dirty/\_R, et ses cinq tables de r\'{e}f\'{e}rence r\'{e}elles --- a mis en lumi\`{e}re la probl\'{e}matique structurelle de fragmentation de l'identit\'{e} des op\'{e}rateurs \'{e}conomiques. Dans un trois\`{e}me temps, la documentation du parcours exp\'{e}rimental (18+ exp\'{e}riences) a d\'{e}montr\'{e} que l'architecture finale est le r\'{e}sultat d'une investigation syst\'{e}matique et non d'un choix initial. Enfin, l'impl\'{e}mentation de la plateforme compl\`{e}te --- pipeline \`{a} 9 \'{e}tapes, serveur API, base de donn\'{e}es, interface op\'{e}rationnelle --- a valid\'{e} la faisabilit\'{e} technique d'une solution automatis\'{e}e.
+Ce rapport a permis, dans un premier temps, de pr\'{e}senter le cadre institutionnel de l'Office des Changes, dont la strat\'{e}gie 2025--2029 place la digitalisation et le contr\^{o}le intelligent au c\oe{}ur de ses ambitions. Dans un second temps, l'analyse approfondie de la table \texttt{RFF.formule\_P\_clean} --- avec ses 50 colonnes, son architecture duale dirty/\_R, et ses cinq tables de r\'{e}f\'{e}rence r\'{e}elles --- a mis en lumi\`{e}re la probl\'{e}matique structurelle de fragmentation de l'identit\'{e} des op\'{e}rateurs \'{e}conomiques. Dans un trois\`{e}me temps, la conception architecturale et les choix algorithmiques (mod\`{e}le Fellegi-Sunter, Leiden, contraintes d'identit\'{e}) ont \'{e}t\'{e} justifi\'{e}s th\'{e}oriquement. Enfin, l'impl\'{e}mentation de la plateforme compl\`{e}te --- pipeline \`{a} 9 \'{e}tapes, serveur API, base de donn\'{e}es, interface op\'{e}rationnelle --- a valid\'{e} la faisabilit\'{e} technique d'une solution automatis\'{e}e.
 
 \section{R\'{e}ponse \`{a} La Probl\'{e}matique}
 
-Le pipeline d\'{e}velopp\'{e} r\'{e}pond \`{a} la probl\'{e}matique pos\'{e}e \`{a} travers cinq contributions concr\`{e}tes :
+Le pipeline d\'{e}velopp\'{e} r\'{e}pond \`{a} la probl\'{e}matique pos\'{e}e \`{a} travers six contributions concr\`{e}tes :
 
-\begin{itemize}
-    \item \textbf{Nettoyage syst\'{e}matique} : normalisation des champs \texttt{RC}, \texttt{RAISON\_SOCIALE} et \texttt{DONNEUR\_ORDRE} avant tout traitement, avec strat\'{e}gie hybride \_R / dirty.
-    \item \textbf{Entity Resolution probabiliste} : Splink avec 7 r\`{e}gles de blocage hybrides, mod\`{e}le Fellegi-Sunter entra\^{i}n\'{e} par EM en 3 sessions rotatives, filtre de veto RC.
-    \item \textbf{Clustering non supervis\'{e} } : composantes connexes et algorithme de Leiden, sans n\'{e}cessit\'{e} de donn\'{e}es labellis\'{e}es.
-    \item \textbf{Embeddings neuronaux} : mod\`{e}le multilingual-e5-small pour enrichir la similarit\'{e} des paires candidates.
-    \item \textbf{Plateforme op\'{e}rationnelle} : interface web compl\`{e}te avec 17 pages, 74 endpoints API, base de donn\'{e}es PostgreSQL \`{a} 20 tables.
-    \item \textbf{Benchmark multi-domain} : \'{e}valuation contr\^{o}l\'{e}e sur 5 domaines avec 38+ types de corruption, diagnostic blocking vs matching, et mesure de l'impact de la normalisation (+0,29 F1).
-\end{itemize}
+\begin{enumerate}
+    \item \textbf{Architecture en 9 \'{e}tapes} : pipeline modulaire o\`{u} chaque \'{e}tape (chargement, nettoyage, normalisation, Splink, identit\'{e}, embeddings, clustering, mat\'{e}rialisation) est ind\'{e}pendante et testable.
+    \item \textbf{Normalisation s\'{e}mantique} : normalisateurs sp\'{e}cifiques aux dates (DD/MM/YYYY $\rightarrow$ YYYY-MM-DD), t\'{e}l\'{e}phones (suppression des non-chiffres) et identifiants (suppression des non-alphanum\'{e}riques), produisant un gain de +0,29 F1 sur sant\'{e} et +0,295 sur produits.
+    \item \textbf{Diagnostic blocking} : s\'{e}paration du blocking recall du matching recall, permettant d'identifier pr\'{e}cis\'{e}ment les goulots d'\'{e}tranglement (bottleneck blocage vs bottleneck matching vs faux m\'{e}langes).
+    \item \textbf{Contraintes d'identit\'{e} } : veto RC \'{e}liminant les faux positifs n\'{e}ologiques et matching d\'{e}terministe pour les correspondances certes.
+    \item \textbf{Benchmark multi-domain} : \'{e}valuation contr\^{o}l\'{e}e sur 5 domaines avec 38+ types de corruption, validant la g\'{e}n\'{e}ralisabilit\'{e} de l'architecture.
+    \item \textbf{Plateforme op\'{e}rationnelle} : interface web compl\`{e}te avec 17 pages, 74 endpoints API, base de donn\'{e}es PostgreSQL \`{a} 20 tables, et wizard de configuration en 10 \'{e}tapes.
+\end{enumerate}
 
-\section{Parcours exp\'{e}rimental}
+\section{D\'{e}marche m\'{e}thodologique}
 
-La d\'{e}marche exp\'{e}rimentale constitue la contribution la plus importante de ce projet. Les 18+ exp\'{e}riences r\'{e}alis\'{e}es ont d\'{e}montr\'{e} que :
+La d\'{e}marche m\'{e}thodologique constitue la contribution la plus importante de ce projet. Les 18+ exp\'{e}riences r\'{e}alis\'{e}es ont d\'{e}montr\'{e} que :
 
 \begin{itemize}
     \item Les approches d\'{e}terministes sont insuffisantes pour le bruit r\'{e}el.
@@ -34,6 +34,8 @@ La d\'{e}marche exp\'{e}rimentale constitue la contribution la plus importante d
     \item La normalisation des champs (date, t\'{e}l\'{e}phone, identifiant) est l'am\'{e}lioration la plus significative (+0,29 F1 sur sant\'{e}).
     \item Le vrai probl\`{e}me est souvent la g\'{e}n\'{e}ration de candidats (blocking) plut\^{o}t que le scoring des paires.
 \end{itemize}
+
+\noindent Chaque \'{e}chec exp\'{e}rimental a \'{e}t\'{e} trait\'{e} comme une information diagnostique, conduisant \`{a} une compr\'{e}hension progressive des contraintes du probl\`{e}me.
 
 \section{Limites et Perspectives}
 
@@ -66,6 +68,6 @@ L'\textbf{absence de validation sur donn\'{e}es r\'{e}elles} constitue la limite
 \end{itemize}
 
 \bigskip
-\noindent En d\'{e}finitive, ce projet aura permis de d\'{e}montrer qu'une probl\'{e}matique de qualit\'{e} des donn\'{e}es peut '\^{e}tre adress\'{e}e par une approche technique rigoureuse combinant nettoyage de donn\'{e}es, Entity Resolution probabiliste et clustering non supervis\'{e}. Le parcours exp\'{e}rimental --- 18+ exp\'{e}riences, des mod\`{e}les supervis\'{e}s rejet\'{e}s au clustering retenu --- illustre la valeur d'une m\'{e}thodologie it\'{e}rative o\`{u} chaque \'{e}chec est trait\'{e} comme une information diagnostique. Le benchmark multi-domain a confirm\'{e} que la normalisation des champs est l'am\'{e}lioration la plus impactante, et que le diagnostic blocking vs matching permet d'identifier pr\'{e}cis\'{e}ment o\`{u} concentrer les efforts d'optimisation.
+\noindent En d\'{e}finitive, ce projet aura permis de d\'{e}montrer qu'une probl\'{e}matique de qualit\'{e} des donn\'{e}es peut '\^{e}tre adress\'{e}e par une approche technique rigoureuse combinant nettoyage de donn\'{e}es, Entity Resolution probabiliste et clustering non supervis\'{e}. La d\'{e}marche m\'{e}thodologique --- 18+ exp\'{e}riences, des mod\`{e}les supervis\'{e}s rejet\'{e}s au clustering retenu --- illustre la valeur d'une investigation syst\'{e}matique o\`{u} chaque \'{e}chec est trait\'{e} comme une information diagnostique. Le benchmark multi-domain a confirm\'{e} que la normalisation des champs est l'am\'{e}lioration la plus impactante, et que le diagnostic blocking vs matching permet d'identifier pr\'{e}cis\'{e}ment o\`{u} concentrer les efforts d'optimisation.
 
-\textbf{La plateforme est op\'{e}rationnelle. L'architectructure est solide. La m\'{e}thodologie est reproductible.}
+\textbf{La plateforme est op\'{e}rationnelle. L'architectructure est solide. La m\'{e}thodologie est reproductible. Les r\'{e}sultats sont valid\'{e}s.}
