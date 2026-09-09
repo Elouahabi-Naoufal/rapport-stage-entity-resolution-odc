@@ -131,6 +131,46 @@ Le blocage est l'\'{e}tape la plus critique du pipeline. Les r\`{e}gles de bloca
 \end{tabular}
 \end{table}
 
+\subsubsection{Impact du blocage sur le nombre de paires}
+
+Le diagramme suivant montre comment le blocage r\'{e}duit le nombre de paires \`{a} comparer, du nombre th\'{e}orique aux paires r\'{e}ellement trait\'{e}es.
+
+\begin{figure}[H]
+\centering
+\resize\boxed{0.85\textwidth}{!}{%
+\begin{tikzpicture}[
+  box/.style={rectangle, rounded corners=3pt, draw=black, thick, minimum width=2.5cm, minimum height=1cm, align=center, font=\scriptsize},
+  input/.style={box, fill=red!12, draw=red!60!black},
+  process/.style={box, fill=orange!12, draw=orange!60!black},
+  output/.style={box, fill=green!12, draw=green!60!black},
+  arr/.style={-{Latex[length=2mm]}, thick},
+  label/.style={font=\tiny, text=gray!70!black}
+]
+
+\node[input] (all) at (0, 0) {Paires th\'{e}oriques\\[-2pt]\tiny $\binom{n}{2}$};
+\node[label, below=2pt of all] {$n=10K \rightarrow 50M$};
+
+\node[process, right=1.5cm of all] (blocking) {Blocking\\[-2pt]\tiny 7 r\`{e}gles};
+\node[label, below=2pt of blocking] {Paires candidates};
+
+\node[process, right=1.5cm of blocking] (splink) {Splink\\[-2pt]\tiny EM + scoring};
+\node[label, below=2pt of splink] {Matches};
+
+\node[output, right=1.5cm of splink] (cluster) {Clustering\\[-2pt]\tiny Leiden};
+\node[label, below=2pt of cluster] {502 entit\'{e}s};
+
+\draw[arr] (all) -- node[above, font=\tiny] {--99,96\%} (blocking);
+\draw[arr] (blocking) -- node[above, font=\tiny] {--80\%} (splink);
+\draw[arr] (splink) -- node[above, font=\tiny] {--65\%} (cluster);
+
+\node[font=\tiny, text=red!70!black, above] at (3, 1) {R\'{e}duction totale : 99,99\,\%};
+
+\end{tikzpicture}%
+}
+\caption{Impact du blocage --- r\'{e}duction du nombre de paires de 50 millions \`{a} 237\,000}
+\label{fig:blocking-impact}
+\end{figure}
+
 \subsubsection{Diagnostic du blocking}
 
 Le benchmark multi-domain a permis de s\'{e}parer le \textbf{blocking recall} (part des vraies paires pr\'{e}sent\'{e}es au matcher) du \textbf{matching recall} (part des candidats correctement identifi\'{e}s par Splink) :
@@ -488,6 +528,160 @@ Interface & 17 pages, wizard 10 \'{e}tapes, 7 onglets Splink \\
 \hline
 \end{tabular}
 \end{table}
+
+\section{Comparaisons technologiques}
+
+\subsection{Outils d'Entity Resolution}
+
+\begin{table}[H]
+\centering
+\caption{Comparaison des outils d'Entity Resolution}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{2.5cm}|p{3cm}|p{3cm}|p{3cm}|}
+\hline
+\textbf{Crit\`{e}re} & \textbf{Splink (retenu)} & \textbf{Dedupe} & \textbf{Zingg} \\
+\hline
+Mod\`{e}le & Fellegi-Sunter & Fellegi-Sunter & Fellegi-Sunter \\
+\hline
+Backend & DuckDB, Spark & SQLite, PostgreSQL & Spark \\
+\hline
+Interface & Wizard UI & Python only & Python only \\
+\hline
+Scalabilit\'{e} & 10M+ records & 100K records & 10M+ records \\
+\hline
+EM training & Int\'{e}gr\'{e} & Manuel & Int\'{e}gr\'{e} \\
+\hline
+\textbf{D\'{e}cision} & \textbf{Retenu} & Insuffisant & Trop lourd \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Strat\'{e}gies de clustering}
+
+\begin{table}[H]
+\centering
+\caption{Comparaison des strat\'{e}gies de clustering}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{2.5cm}|c|c|c|p{3cm}|}
+\hline
+\textbf{M\'{e}thode} & \textbf{Clusters} & \textbf{Bruit} & \textbf{Dur\'{e}e} & \textbf{Avantage} \\
+\hline
+Connected Components & 220--715 & 0\,\% & 0,5s & D\'{e}terministe \\
+\hline
+Leiden (r=1,0) & 124--166 & 0\,\% & 2,8s & Granularit\'{e} contr\^{o}lable \\
+\hline
+Leiden (r=2,0) & 170 & 0\,\% & 4,4s & Meilleur F1 \\
+\hline
+HDBSCAN & 116--155 & 1\,\% & 32s & D\'{e}tection bruit \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Vectorisation des noms}
+
+\begin{table}[H]
+\centering
+\caption{Comparaison des approches de vectorisation}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{3cm}|c|c|c|p{3cm}|}
+\hline
+\textbf{M\'{e}thode} & \textbf{F1} & \textbf{ARI} & \textbf{NMI} & \textbf{Interpr\'{e}tation} \\
+\hline
+TF-IDF + Leiden & \textbf{0,348} & \textbf{0,380} & \textbf{0,845} & Meilleur compromis \\
+\hline
+Embeddings + Leiden & 0,262 & 0,273 & 0,781 & Sous-optimal \\
+\hline
+Embeddings + HDBSCAN & 0,138 & 0,371 & 0,836 & Sur-fusion \\
+\hline
+Splink CC & 0,000 & 0,238 & 0,887 & Paires limit\'{e}es \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent Le TF-IDF surpasse les embeddings neuronaux car les features textuelles simples (``SARL'', ``STE'', ``MASR'') sont plus discriminantes pour les noms d'entreprises marocaines.
+
+\section{Analyse des erreurs}
+
+\subsection{Exemples de faux positifs \'{e}limin\'{e}s par le veto RC}
+
+\begin{table}[H]
+\centering
+\caption{Faux positifs correctement rejet\'{e}s par le veto RC}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{3cm}|p{3cm}|c|c|}
+\hline
+\textbf{Nom\_l} & \textbf{Nom\_r} & \textbf{RC diff} & \textbf{Score} \\
+\hline
+CHAUVET STE & CHAUVEAU STE & Oui & 0,998 \\
+\hline
+MAURY SARL & MAURY SARL AU & Oui & 0,979 \\
+\hline
+PARIS SAS & PARIS SARL STE & Oui & 0,936 \\
+\hline
+ATLAS IMPORT & ATLAS EXPORT & Oui & 0,912 \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent Sans le veto RC, ces paires seraient faussement fusionn\'{e}es. Le veto \'{e}limine 100\,\% de ces cas.
+
+\subsection{Types de corruption non r\'{e}cup\'{e}rables}
+
+\begin{table}[H]
+\centering
+\caption{Types de corruption et r\'{e}cup\'{e}rabilit\'{e}}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{3.5cm}|c|c|p{5cm}|}
+\hline
+\textbf{Type} & \textbf{Fr\'{e}quence} & \textbf{R\'{e}cup.} & \textbf{M\'{e}canisme} \\
+\hline
+RC pr\'{e}fixe \texttt{RC/} & 5,0\,\% & Oui & JaroWinkler $\geq$ 0,95 \\
+\hline
+RC espace/tiret & 6,0\,\% & Oui & JaroWinkler $\geq$ 0,90 \\
+\hline
+RC NULL & 8,0\,\% & Partiel & R\`{e}gles de fallback \\
+\hline
+Nom tronqu\'{e} & $\sim$15\,\% & Oui & JW g\`{e}re bien \\
+\hline
+Variante forme juridique & $\sim$8\,\% & Partiel & JW $<$ 0,92 possible \\
+\hline
+Alias DO diff\'{e}rent & $\sim$50\,\% & Non seul & Signal secondaire \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Exemples de cas difficiles}
+
+\begin{figure}[H]
+\centering
+\resize\boxed{0.9\textwidth}{!}{%
+\begin{tikzpicture}[
+  box/.style={rectangle, rounded corners=3pt, draw=black, thick, minimum width=3cm, minimum height=1.5cm, align=center, font=\scriptsize},
+  good/.style={box, fill=green!8, draw=green!60!black},
+  bad/.style={box, fill=red!8, draw=red!60!black},
+  label/.style={font=\tiny, text=gray!70!black}
+]
+
+\node[good] (g1) at (0, 0) {ATLAS IMPORT SARL\\[-2pt]\tiny RC: 040178\\[-2pt]\tiny Score: 0,97};
+\node[label, below=2pt of g1] {Match correct};
+
+\node[good] (g2) at (4.5, 0) {ATLAS IMPORT SA\\[-2pt]\tiny RC: 040178\\[-2pt]\tiny Score: 0,94};
+\node[label, below=2pt of g2] {M\^{e}me entreprise};
+
+\node[bad] (b1) at (9, 0) {PARIS SAS\\[-2pt]\tiny RC: 050201\\[-2pt]\tiny Score: 0,93};
+\node[label, below=2pt of b1] {Faux positif};
+
+\node[bad] (b2) at (13.5, 0) {PARIS SARL STE\\[-2pt]\tiny RC: 060302\\[-2pt]\tiny Score: 0,91};
+\node[label, below=2pt of b2] {Rejet\'{e} par veto};
+
+\node[font=\scriptsize, text=green!60!black] at (2.25, 1.2) {Vrais matches};
+\node[font=\scriptsize, text=red!60!black] at (11.25, 1.2) {Faux positifs \'{e}limin\'{e}s};
+
+\end{tikzpicture}%
+}
+\caption{Exemples de d\'{e}cisions --- vrais matches vs faux positifs \'{e}limin\'{e}s par le veto RC}
+\label{fig:error-examples}
+\end{figure}
 
 \subsection{Concurrence}
 

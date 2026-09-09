@@ -98,6 +98,67 @@ La plateforme est compos\'{e}e de quatre couches logicielles communicantes :
 \label{fig:system-arch}
 \end{figure}
 
+\subsection{Flux de donn\'{e}es --- du brut \`{a} l'entit\'{e} r\'{e}solue}
+
+Le diagramme suivant montre comment les donn\'{e}es brutes de MSSQL sont transform\'{e}es en entit\'{e}s r\'{e}solues \`{a} travers le pipeline.
+
+\begin{figure}[H]
+\centering
+\resize\boxed{0.95\textwidth}{!}{%
+\begin{tikzpicture}[
+  stage/.style={rectangle, rounded corners=3pt, draw=black, thick, minimum width=2cm, minimum height=0.9cm, align=center, font=\scriptsize},
+  data/.style={stage, fill=blue!12, draw=blue!60!black},
+  process/.style={stage, fill=violet!12, draw=violet!60!black},
+  output/.style={stage, fill=teal!12, draw=teal!60!black},
+  arr/.style={-{Latex[length=2mm]}, thick},
+  label/.style={font=\tiny, text=gray!70!black}
+]
+
+% Source
+\node[data] (src) at (0, 0) {MSSQL\\formule\_P\_clean};
+\node[label, below=2pt of src] {2.5M d\'{e}clarations};
+
+% Step 1: Load
+\node[process, right=1.2cm of src] (load) {Load\\[-2pt]\tiny pyodbc};
+\node[label, below=2pt of load] {DataFrame};
+
+% Step 2-3: Clean + Norm
+\node[process, right=1.2cm of load] (clean) {Clean\\+ Normalize};
+\node[label, below=2pt of clean] {RC, RS, DO};
+
+% Step 4: Splink
+\node[process, right=1.2cm of clean] (splink) {Splink\\[-2pt]\tiny Fellegi-Sunter};
+\node[label, below=2pt of splink] {Paires candidates};
+
+% Step 5-6: Identity + Embeddings
+\node[process, right=1.2cm of splink] (identity) {Identity\\[-2pt]\tiny + Embeddings};
+\node[label, below=2pt of identity] {Matches};
+
+% Step 7: Clustering
+\node[process, right=1.2cm of identity] (cluster) {Clustering\\[-2pt]\tiny Leiden};
+\node[label, below=2pt of cluster] {Clusters};
+
+% Step 8-9: Materialize + Output
+\node[output, right=1.2cm of cluster] (mat) {Materialize\\+ Output};
+\node[label, below=2pt of mat] {502 entit\'{e}s};
+
+% Arrows
+\draw[arr] (src) -- (load);
+\draw[arr] (load) -- (clean);
+\draw[arr] (clean) -- (splink);
+\draw[arr] (splink) -- (identity);
+\draw[arr] (identity) -- (cluster);
+\draw[arr] (cluster) -- (mat);
+
+% Reduction annotations
+\node[font=\tiny, text=red!70!black, above] at (6, 0.8) {2.5M $\rightarrow$ 10K $\rightarrow$ 237K paires $\rightarrow$ 502 entit\'{e}s};
+
+\end{tikzpicture}%
+}
+\caption{Flux de donn\'{e}es --- transformation des donn\'{e}es brutes en entit\'{e}s r\'{e}solues}
+\label{fig:data-flow}
+\end{figure}
+
 \begin{table}[H]
 \centering
 \caption{Technologies utilis\'{e}es par couche}
@@ -703,6 +764,34 @@ Le moteur d'enqu\^{e}te permet d'analyser les relations entre entit\'{e}s :
 \fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}\textbf{[Capture d\'{e}cran : Moteur d'enqu\^{e}te]}\vspace{1cm}\\L'interface d'enqu\^{e}te affiche l'entit\'{e} s\'{e}lectionn\'{e}e, ses contreparties avec scores de confiance, une frise chronologique des transactions, et un panneau de notes.\vspace{2cm}}}
 \caption{Moteur d'enqu\^{e}te --- analyse des relations inter-entit\'{e}s}
 \label{fig:screenshot-investigation}
+\end{figure}
+
+\subsection{D\'{e}tail d'une entit\'{e}}
+
+La page de d\'{e}tail d'une entit\'{e} affiche :
+\begin{itemize}
+    \item Attributs canoniques (RC, nom, banque, guichet)
+    \item Liste de tous les membres du cluster avec probabilit\'{e} de match
+    \item Statut (auto\_approved, review, flagged)
+    \item Historique des d\'{e}clarations associ\'{e}es
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}\textbf{[Capture d\'{e}cran : D\'{e}tail entit\'{e}]}\vspace{1cm}\\La page affiche les attributs canoniques de l'entit\'{e}, la liste de ses membres avec leurs scores de similarit\'{e}, et un graphique montrant la distribution des d\'{e}clarations par p\'{e}riode.\vspace{2cm}}}
+\caption{D\'{e}tail d'une entit\'{e} r\'{e}solue --- attributs, membres et historique}
+\label{fig:screenshot-entity-detail}
+\end{figure}
+
+\subsection{Gestion des pipelines}
+
+La page Pipelines liste tous les pipelines cr\'{e}e\'{e}s, avec leur statut (draft, running, completed, failed) et les m\'{e}triques associ\'{e}es.
+
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}\textbf{[Capture d\'{e}cran : Page Pipelines]}\vspace{1cm}\\La page affiche une liste de pipelines avec nom, statut, nombre d'enregistrements trait\'{e}s, clusters cr\'{e}e\'{e}s, et dur\'{e}e. Un bouton ``New Pipeline'' lance le wizard de configuration.\vspace{2cm}}}
+\caption{Gestion des pipelines --- liste, cr\'{e}ation et suivi}
+\label{fig:screenshot-pipelines}
 \end{figure}
 
 \section{Choix technologiques}
