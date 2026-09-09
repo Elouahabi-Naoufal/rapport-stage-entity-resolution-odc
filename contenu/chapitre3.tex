@@ -478,15 +478,15 @@ La base \texttt{ercp} contient 20 tables organis\'{e}es en 4 domaines fonctionne
 \centering
 \resize\boxed{\textwidth}{!}{%
 \begin{tikzpicture}[
-  entity/.style={rectangle, draw=black, thick, minimum width=2.8cm, font=\small\bfseries, fill=blue!8},
+  entity/.style={rectangle, draw=black, thick, minimum width=2.6cm, font=\small\bfseries, fill=blue!8},
   attr/.style={font=\scriptsize},
   pk/.style={font=\scriptsize\bfseries},
   fk/.style={font=\scriptsize, text=blue!60!black},
   rel/.style={-{Latex[length=2mm]}, thick, black!60},
-  node distance=0.5cm
+  node distance=0.6cm
 ]
 
-% Users
+% Row 1: users, pipelines, pipeline_runs
 \node[entity] (users) at (0,0) {users};
 \node[attr, below=0pt of users, anchor=north, align=left] {
   \textbf{id} PK\\
@@ -495,8 +495,7 @@ La base \texttt{ercp} contient 20 tables organis\'{e}es en 4 domaines fonctionne
   role
 };
 
-% Pipelines
-\node[entity] (pipes) at (5,0) {pipelines};
+\node[entity] (pipes) at (5.5,0) {pipelines};
 \node[attr, below=0pt of pipes, anchor=north, align=left] {
   \textbf{id} PK\\
   name\\
@@ -507,8 +506,7 @@ La base \texttt{ercp} contient 20 tables organis\'{e}es en 4 domaines fonctionne
   \textit{user\_id} FK
 };
 
-% Pipeline Runs
-\node[entity] (runs) at (10,0) {pipeline\_runs};
+\node[entity] (runs) at (11,0) {pipeline\_runs};
 \node[attr, below=0pt of runs, anchor=north, align=left] {
   \textbf{id} PK\\
   name\\
@@ -519,31 +517,8 @@ La base \texttt{ercp} contient 20 tables organis\'{e}es en 4 domaines fonctionne
   \textit{pipeline\_id} FK
 };
 
-% Pipeline Steps
-\node[entity] (steps) at (10,-3.5) {pipeline\_steps};
-\node[attr, below=0pt of steps, anchor=north, align=left] {
-  \textbf{id} PK\\
-  step\\
-  status\\
-  records\_in/out\\
-  duration\_seconds\\
-  \textit{run\_id} FK
-};
-
-% Entities
-\node[entity] (ents) at (5,-4) {entities};
-\node[attr, below=0pt of ents, anchor=north, align=left] {
-  \textbf{id} PK\\
-  entity\_id UNIQUE\\
-  canonical\_rc\\
-  canonical\_name\\
-  record\_count\\
-  status\\
-  \textit{run\_id} FK
-};
-
-% Entity Members
-\node[entity] (mems) at (0,-4) {entity\_members};
+% Row 2: entity_members, entities, pipeline_steps
+\node[entity] (mems) at (0,-5) {entity\_members};
 \node[attr, below=0pt of mems, anchor=north, align=left] {
   \textbf{id} PK\\
   record\_id\\
@@ -554,8 +529,29 @@ La base \texttt{ercp} contient 20 tables organis\'{e}es en 4 domaines fonctionne
   \textit{run\_id} FK
 };
 
-% Investigations
-\node[entity] (inv) at (0,-8) {investigations};
+\node[entity] (ents) at (5.5,-5) {entities};
+\node[attr, below=0pt of ents, anchor=north, align=left] {
+  \textbf{id} PK\\
+  entity\_id UNIQUE\\
+  canonical\_rc\\
+  canonical\_name\\
+  record\_count\\
+  status\\
+  \textit{run\_id} FK
+};
+
+\node[entity] (steps) at (11,-5) {pipeline\_steps};
+\node[attr, below=0pt of steps, anchor=north, align=left] {
+  \textbf{id} PK\\
+  step\\
+  status\\
+  records\_in/out\\
+  duration\_seconds\\
+  \textit{run\_id} FK
+};
+
+% Row 3: investigations, entity_relationships, run_logs
+\node[entity] (inv) at (0,-10) {investigations};
 \node[attr, below=0pt of inv, anchor=north, align=left] {
   \textbf{id} PK\\
   name\\
@@ -565,8 +561,7 @@ La base \texttt{ercp} contient 20 tables organis\'{e}es en 4 domaines fonctionne
   \textit{pipeline\_run\_id} FK
 };
 
-% Entity Relationships
-\node[entity] (rel) at (5,-8) {entity\_relationships};
+\node[entity] (rel) at (5.5,-10) {entity\_relationships};
 \node[attr, below=0pt of rel, anchor=north, align=left] {
   \textbf{id} PK\\
   relationship\_type\\
@@ -576,8 +571,7 @@ La base \texttt{ercp} contient 20 tables organis\'{e}es en 4 domaines fonctionne
   \textit{entity\_b\_id} FK
 };
 
-% Run Logs
-\node[entity] (logs) at (10,-7) {run\_logs};
+\node[entity] (logs) at (11,-10) {run\_logs};
 \node[attr, below=0pt of logs, anchor=north, align=left] {
   \textbf{id} PK\\
   stage\\
@@ -587,15 +581,17 @@ La base \texttt{ercp} contient 20 tables organis\'{e}es en 4 domaines fonctionne
   \textit{run\_id} FK
 };
 
-% Relationships
-\draw[rel] (users.south) -- ++(0,-0.3) -| (pipes.north);
-\draw[rel] (pipes.south) -- (runs.north);
-\draw[rel] (runs.south) -- (ents.north);
-\draw[rel] (runs.east) -- (steps.west);
-\draw[rel] (ents.south) -- (mems.north);
-\draw[rel] (ents.south) -- ++(0,-0.3) -| (inv.north);
-\draw[rel] (ents.south) -- ++(0,-0.3) -| (rel.north);
-\draw[rel] (runs.south) -- ++(0,-0.3) -| (logs.north);
+% Relationships - clean vertical/horizontal lines
+\draw[rel] (users.south) -- (pipes.north) node[midway, above, font=\scriptsize] {1:N};
+\draw[rel] (pipes.south) -- (ents.north) node[midway, right, font=\scriptsize] {1:N};
+\draw[rel] (runs.south) -- (ents.north) node[midway, left, font=\scriptsize] {1:N};
+
+\draw[rel] (runs.west) -- (steps.east) node[midway, above, font=\scriptsize] {1:N};
+\draw[rel] (runs.south) -- (logs.north) node[midway, right, font=\scriptsize] {1:N};
+
+\draw[rel] (ents.west) -- (mems.east) node[midway, above, font=\scriptsize] {1:N};
+\draw[rel] (ents.south) -- (inv.north) node[midway, left, font=\scriptsize] {1:N};
+\draw[rel] (ents.south) -- (rel.north) node[midway, right, font=\scriptsize] {1:N};
 
 \end{tikzpicture}%
 }
