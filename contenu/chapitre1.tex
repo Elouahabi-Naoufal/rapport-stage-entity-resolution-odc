@@ -151,48 +151,17 @@ Le stage s'est déroulé sur une période de deux mois, du 1\textsuperscript{er}
 \label{fig:gantt-detail}
 \end{figure}
 
-\begin{table}[H]
-\centering
-\caption{Principales tâches réalisées et jalons associés à chaque phase.}
-\renewcommand{\arraystretch}{1.3}
-\setlength{\tabcolsep}{4pt}
-\begin{tabularx}{\textwidth}{
-    |>{\raggedright\arraybackslash}p{0.20\textwidth}
-    |>{\raggedright\arraybackslash}X
-    |>{\raggedright\arraybackslash}p{0.25\textwidth}|}
-\hline
-\rowcolor{black!80}
-{\color{white}\textbf{Phase}} &
-{\color{white}\textbf{Tâches principales}} &
-{\color{white}\textbf{Jalon}} \\
-\hline
-\rowcolor{teal!15}
-\textbf{Ph.1} --- Exploration &
-Étude de la base et de la table formule\_P, lecture de la réglementation applicable, état de l'art de l'Entity Resolution et choix de Splink &
-Architecture du projet validée \\
-\hline
-\rowcolor{orange!10}
-\textbf{Ph.2} --- Pipeline &
-Nettoyage générique, normalisation métier des identifiants, configuration de Splink avec entraînement EM, similarité par embeddings, clustering et matérialisation des entités &
-Pipeline fonctionnel de bout en bout \\
-\hline
-\rowcolor{blue!10}
-\textbf{Ph.3} --- Plateforme &
-Serveur d'API avec persistance PostgreSQL, worker d'exécution avec suivi temps réel, interface de configuration, de suivi, de visualisation et de recherche &
-Plateforme déployée et testée \\
-\hline
-\rowcolor{violet!10}
-\textbf{Ph.4} --- Évaluation &
-Construction du jeu synthétique avec vérité terrain, mesure de la précision, du rappel et du F-score, analyses d'ablation et validation manuelle &
-Performances mesurées et analysées \\
-\hline
-\rowcolor{yellow!15}
-\textbf{Ph.5} --- Rapport &
-Rédaction des quatre chapitres, mise en forme des diagrammes, relecture et dépôt &
-Dépôt du rapport final \\
-\hline
-\end{tabularx}
-\end{table}
+\subsection*{Description des phases}
+
+La première phase, consacrée à l'exploration et au cadrage pendant les deux premières semaines, couvre l'étude de la base de données et de la table formule\_P, la lecture de la réglementation applicable aux déclarations bancaires, ainsi que l'état de l'art de l'Entity Resolution ayant conduit au choix du linkage probabiliste avec Splink. Le jalon associé est la validation de l'architecture du projet, qui fixe les technologies et le découpage en étapes avant tout développement.
+
+La deuxième phase, dédiée au pipeline d'Entity Resolution de la deuxième à la cinquième semaine, constitue le cœur technique du stage. Elle comprend le nettoyage générique des données, la normalisation métier des identifiants marocains, la configuration de Splink avec son entraînement non supervisé, l'enrichissement par similarité sémantique neuronale, le regroupement des paires par clustering sur graphe, et la matérialisation des entités avec leurs attributs canoniques. Le jalon associé est le pipeline fonctionnel de bout en bout, capable de transformer des déclarations brutes en entités résolues.
+
+La troisième phase, consacrée à la plateforme web de la quatrième à la septième semaine, en chevauchement avec la fin de la précédente, couvre le développement du serveur d'API avec sa persistance PostgreSQL, du worker d'exécution avec son suivi temps réel, et de l'interface de configuration, de suivi, de visualisation et de recherche. Le jalon associé est la plateforme déployée et testée, utilisable par des analystes non informaticiens.
+
+La quatrième phase, dédiée à l'évaluation pendant les sixième et septième semaines, comprend la construction du jeu de données synthétique avec vérité terrain, la mesure de la précision, du rappel et du F-score, les analyses d'ablation par composant, et la validation manuelle d'échantillons représentatifs. Le jalon associé est l'obtention de performances mesurées et analysées, qui établissent empiriquement l'efficacité de l'approche.
+
+La cinquième phase, consacrée à la rédaction du rapport de la sixième à la huitième semaine, couvre la rédaction des quatre chapitres, la mise en forme des diagrammes et des captures d'écran, la relecture d'ensemble et le dépôt. Le jalon associé est le dépôt du rapport final, qui clôture le stage.
 
 \noindent Les cinq phases ne sont pas strictement séquentielles : la construction de la plateforme démarre en chevauchement avec la fin du développement du pipeline, et la rédaction accompagne les dernières semaines du stage, ce qui reflète la réalité d'un projet où le développement, l'évaluation et la documentation avancent en parallèle.
 
