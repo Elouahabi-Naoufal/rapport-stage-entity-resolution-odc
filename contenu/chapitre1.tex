@@ -146,41 +146,7 @@ Le stage s'est déroulé sur une période de deux mois, du 1\textsuperscript{er}
 
 \begin{figure}[H]
 \centering
-\begin{ganttchart}[
-  x unit=0.92cm,
-  y unit title=0.7cm,
-  y unit chart=0.6cm,
-  bar height=0.5,
-  group peaks width=0,
-  title height=1,
-  bar label font=\footnotesize,
-  group label font=\footnotesize,
-  milestone label font=\scriptsize,
-  canvas/.append style={draw=black},
-  vgrid={*1{draw=gray!30}},
-  hgrid={*1{draw=gray!20}}
-]{1}{8}
-\gantttitle{Juillet 2026}{4} \gantttitle{Août 2026}{4} \\
-\gantttitlelist{1,...,8}{1} \\
-\ganttgroup{Ph.1 Exploration et cadrage}{1}{2} \\
-\ganttbar{Base et réglementation}{1}{1} \\
-\ganttbar{État de l'art et choix de Splink}{1}{2} \\
-\ganttgroup{Ph.2 Pipeline d'Entity Resolution}{2}{5} \\
-\ganttbar{Nettoyage et normalisation}{2}{3} \\
-\ganttbar{Configuration Splink et EM}{3}{4} \\
-\ganttbar{Embeddings, clustering, entités}{4}{5} \\
-\ganttgroup{Ph.3 Plateforme web}{4}{7} \\
-\ganttbar{API et persistance}{4}{5} \\
-\ganttbar{Worker et suivi temps réel}{5}{6} \\
-\ganttbar{Interface et recherche}{6}{7} \\
-\ganttgroup{Ph.4 Évaluation}{6}{7} \\
-\ganttbar{Jeu synthétique et métriques}{6}{7} \\
-\ganttgroup{Ph.5 Rédaction du rapport}{6}{8} \\
-\ganttbar{Rédaction des chapitres}{6}{8} \\
-\ganttmilestone{Architecture validée}{2} \\
-\ganttmilestone{Pipeline fonctionnel}{5} \\
-\ganttmilestone{Plateforme déployée}{7}
-\end{ganttchart}
+\includegraphics[width=\textwidth]{images/gantt.png}
 \caption{Diagramme de Gantt détaillé du stage, du 1\textsuperscript{er} juillet au 31 août 2026 : cinq phases décomposées en tâches, avec trois jalons de validation.}
 \label{fig:gantt-detail}
 \end{figure}
