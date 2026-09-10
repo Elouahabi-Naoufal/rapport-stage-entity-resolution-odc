@@ -4,29 +4,57 @@ Ce chapitre expose la méthodologie retenue pour résoudre la problématique de 
 
 \section{Présentation des données}
 
-\subsection{La base et la table formule\_P}
+\subsection{Schéma de la base de données}
 
-Les déclarations bancaires sont stockées dans la base Datamart\_CommerceExterieur, dont la table formule\_P concentre les opérations de change traitées par formule. Chaque ligne de cette table décrit une opération et porte les identifiants de l'opérateur concerné. La table compte plus de soixante colonnes qui couvrent l'ensemble des dimensions d'une opération : les références techniques de l'opération, les codes de la banque et du guichet domiciliataires, la classification de l'opération, les contreparties géographiques, l'identité de l'opérateur, les montants et devises, ainsi que des informations libres et des métadonnées de traçabilité.
+Les déclarations bancaires sont stockées dans la base Datamart\_CommerceExterieur, dont la table formule\_P concentre les opérations de change traitées par formule. Chaque ligne décrit une opération et porte les identifiants de l'opérateur concerné. La table compte plus de soixante colonnes, organisées en groupes fonctionnels présentés dans le tableau ci-dessous.
 
-Les références techniques comprennent l'identifiant de chargement, la référence de la formule réglementaire avec son code de ligne, le numéro de dossier et le numéro d'autorisation. Les codes de banque et de guichet existent en double version : la version déclarée par l'établissement et la version alignée sur le référentiel de Bank Al-Maghrib, qui fait foi pour l'identification de l'établissement domiciliataire. La classification de l'opération comprend le sens, la catégorie, le code d'opération et les dates d'autorisation, de domiciliation et d'exécution. Les contreparties géographiques comprennent les codes pays de l'opération, du partenaire étranger et des fonds, ainsi que le centre régional de l'Office des Changes.
+\begin{table}[H]
+\centering
+\caption{Schéma fonctionnel de la table formule\_P : groupes de colonnes et leur rôle pour le pipeline.}
+\renewcommand{\arraystretch}{1.3}
+\setlength{\tabcolsep}{3pt}
+{\small
+\begin{tabular}{|p{3.0cm}|p{4.8cm}|p{6.2cm}|}
+\hline
+\textbf{Groupe} & \textbf{Colonnes représentatives} & \textbf{Rôle pour le pipeline} \\
+\hline
+Références techniques &
+\texttt{ID\_FORMULE}, \texttt{NUM\_FORMULE}, \texttt{NUM\_DOSSIER}, \texttt{ID\_CHARGEMENT} &
+Identifiant unique de ligne et traçabilité des chargements \\
+\hline
+Banque et guichet &
+\texttt{CODE\_BANQUE\_BAM}, \texttt{CODE\_GUICHET\_BAM}, \texttt{CODE\_BIC} &
+Établissement domiciliataire selon le référentiel officiel \\
+\hline
+Classification &
+\texttt{SENS}, \texttt{CATEGORIE}, \texttt{CODE\_OPERATION}, \texttt{DATE\_EXECUTION} &
+Nature et chronologie de l'opération \\
+\hline
+Géographie &
+\texttt{CODE\_PAYS}, \texttt{PAYS\_PARTENAIRE}, \texttt{CENTRE}, \texttt{CENTRE\_R} &
+Contreparties et rattachement régional, contexte stable \\
+\hline
+Identité de l'opérateur &
+\texttt{RC}, \texttt{RC\_R}, \texttt{RAISON\_SOCIALE}, \texttt{RAISON\_SOCIALE\_R}, \texttt{DONNEUR\_ORDRE} &
+Champs discriminants exploités par le matching probabiliste \\
+\hline
+Montants et devises &
+\texttt{CODE\_DEVISE}, \texttt{MONTANT\_DEVISE}, \texttt{COURS}, \texttt{MONTANT\_DHS} &
+Contexte financier de l'opération, non identifiant \\
+\hline
+Informations libres &
+\texttt{INFOS\_SUPP}, \texttt{COMMENTAIRE}, \texttt{NOM\_FICHIER} &
+Contexte et traçabilité, non exploités par le matching \\
+\hline
+Référentiel opérateurs &
+\texttt{RC}, \texttt{RAISON\_SOCIAL}, \texttt{FJ}, \texttt{ID\_FISCALE}, \texttt{CODESECTEUR} &
+Vérité partielle sur les entreprises, pour confrontation \\
+\hline
+\end{tabular}
+}
+\end{table}
 
-L'identité de l'opérateur est portée par plusieurs champs complémentaires : le donneur d'ordre, la raison sociale et le Registre de Commerce, chacun existant en version déclarée et en version corrigée. Les montants comprennent le montant en devise, le cours appliqué et le montant converti en dirhams, également en versions déclarée et corrigée. Des champs libres d'informations complémentaires et de commentaires, ainsi que les métadonnées de création et de modification, complètent chaque ligne.
-
-\subsection{La convention des versions corrigées}
-
-Une particularité structurante de la table est la coexistence, pour de nombreux champs, d'une version déclarée et d'une version corrigée, cette dernière étant reconnaissable à son suffixe. La version déclarée reprend la valeur telle que transmise par l'établissement bancaire, tandis que la version corrigée porte la valeur rapprochée ou rectifiée lors des traitements de réconciliation. Lorsque les deux versions divergent, cette divergence constitue en soi une information : elle signale une incertitude sur l'identifiant qui justifie de mobiliser les autres champs pour trancher. Le pipeline exploite systématiquement les deux versions, en privilégiant les versions corrigées pour la construction des attributs canoniques des entités.
-
-\subsection{La sparsité des données}
-
-Seule la référence de la formule est renseignée de manière systématique sur chaque ligne. Tous les autres champs acceptent l'absence de valeur, et de nombreuses lignes ne contiennent aucune valeur pour des champs pourtant essentiels à l'identification, tels que le Registre de Commerce ou la raison sociale. Cette sparsité n'est pas un défaut accidentel mais une caractéristique structurelle des données, liée à la diversité des circuits déclaratifs et des pratiques de saisie des établissements. Elle exclut d'emblée toute méthode qui exigerait la présence d'un identifiant unique sur chaque ligne, et justifie le recours à une approche qui combine les indices disponibles, aussi partiels soient-ils, plutôt qu'à une recherche exacte sur un champ supposé discriminant.
-
-\subsection{Le référentiel des opérateurs}
-
-À côté de la table des opérations, la base comprend un référentiel des opérateurs qui décrit les entreprises connues de l'institution avec leur Registre de Commerce, leur raison sociale de référence, leur forme juridique, leur capital, leurs dates de création et de radiation, leur objet social, leur identifiant fiscal, leur secteur d'activité et leurs coordonnées. Ce référentiel constitue une source de vérité partielle sur l'identité des opérateurs, mobilisable pour confronter les entités résolues par le pipeline aux entreprises officiellement enregistrées.
-
-\subsection{Les colonnes exploitées par le pipeline}
-
-Le pipeline ne traite pas l'intégralité des colonnes, mais sélectionne celles qui portent l'identité de l'opérateur : la référence de la formule comme identifiant unique de ligne, le Registre de Commerce et sa version corrigée, les raisons sociales déclarée et corrigée, le donneur d'ordre, les codes de banque et de guichet alignés sur le référentiel officiel, ainsi que des champs contextuels tels que le centre et la ville. Cette sélection concentre le traitement sur les champs discriminants tout en conservant le contexte nécessaire à la levée des ambiguïtés.
+\noindent Deux conventions structurent cette table. Pour de nombreux champs coexistent une version déclarée, telle que transmise par l'établissement bancaire, et une version corrigée reconnaissable à son suffixe, issue des traitements de réconciliation. Lorsque les deux versions divergent, cette divergence signale une incertitude que les autres champs doivent lever, et le pipeline privilégie les versions corrigées pour les attributs canoniques. Par ailleurs, seule la référence de la formule est renseignée systématiquement : tous les autres champs acceptent l'absence de valeur, et de nombreuses lignes ne contiennent aucune valeur pour des champs essentiels tels que le Registre de Commerce. Cette sparsité exclut toute méthode exigeant un identifiant unique présent sur chaque ligne. Le pipeline ne traite qu'une sélection de colonnes, à savoir la référence de ligne, les identifiants de l'opérateur avec leurs versions corrigées, les codes de banque et de guichet officiels, et des champs contextuels tels que le centre et la ville.
 
 \section{Concepts fondamentaux de l'Entity Resolution}
 
