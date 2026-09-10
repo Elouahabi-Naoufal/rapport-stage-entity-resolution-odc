@@ -112,13 +112,42 @@ La préparation des données ne constitue pas en soi de l'Entity Resolution, mai
 
 \subsection{Le nettoyage générique}
 
-La première couche élimine les artefacts de saisie sans connaissance métier. Les espaces superflus en début et en fin de chaîne sont supprimés. Les différentes représentations de l'absence de valeur, telles que les chaînes vides ou les marqueurs textuels d'absence, sont converties en valeurs nulles explicites afin d'être traitées uniformément par la suite. Les caractères de contrôle invisibles hérités des transferts de fichiers sont supprimés. Enfin, les lignes rigoureusement identiques sont dédupliquées, car elles n'apportent aucune information au modèle probabiliste.
+La première couche élimine les artefacts de saisie sans connaissance métier, en quatre opérations :
+
+\begin{itemize}
+    \item Suppression des espaces superflus en début et en fin de chaque chaîne.
+    \item Conversion des différentes représentations de l'absence de valeur, telles que les chaînes vides ou les marqueurs textuels d'absence, en valeurs nulles explicites afin de les traiter uniformément par la suite.
+    \item Suppression des caractères de contrôle invisibles hérités des transferts de fichiers.
+    \item Déduplication des lignes rigoureusement identiques, qui n'apportent aucune information au modèle probabiliste.
+\end{itemize}
 
 \subsection{La normalisation métier}
 
-La seconde couche applique des règles qui tiennent compte des spécificités marocaines des identifiants. Le Registre de Commerce est normalisé en supprimant son préfixe littéral et les séparateurs tels que les espaces et les tirets, puis en uniformisant la casse, de sorte que les différentes graphies d'un même numéro deviennent comparables. Les codes de banque et de guichet sont ramenés à une largeur canonique par ajout de zéros non significatifs en tête, ce qui permet de comparer des codes saisis avec ou sans ces zéros. Les noms d'entreprises sont normalisés en réduisant les espaces multiples, en uniformisant les abréviations de formes juridiques vers leurs formes canoniques courtes, et en supprimant la ponctuation finale. La casse est uniformisée et les caractères accentués sont normalisés selon la forme canonique Unicode.
+La seconde couche applique des règles qui tiennent compte des spécificités marocaines des identifiants. Le tableau suivant résume ces règles de normalisation métier et l'effet recherché pour chacune.
 
-Cette normalisation réduit considérablement l'espace des variations superficielles, mais elle ne résout pas à elle seule le problème. Les variations sémantiques, telles que les alias ou les troncatures importantes, subsistent après normalisation et relèvent du matching flou et du modèle probabiliste.
+\begin{table}[H]
+\centering
+\caption{Règles de normalisation métier appliquées aux identifiants.}
+\renewcommand{\arraystretch}{1.3}
+\setlength{\tabcolsep}{3pt}
+{\small
+\begin{tabular}{|p{3.2cm}|p{5.2cm}|p{5.2cm}|}
+\hline
+\textbf{Champ} & \textbf{Règle} & \textbf{Effet} \\
+\hline
+Registre de Commerce & Suppression du préfixe littéral et des séparateurs, uniformisation de la casse & Les différentes graphies d'un même numéro deviennent comparables \\
+\hline
+Codes de banque et de guichet & Ajout de zéros non significatifs en tête jusqu'à la largeur canonique & Les codes saisis avec ou sans zéros deviennent comparables \\
+\hline
+Noms d'entreprises & Réduction des espaces multiples, uniformisation des abréviations de formes juridiques, suppression de la ponctuation finale & Les formulations variantes d'un même nom deviennent comparables \\
+\hline
+Casse et accents & Uniformisation de la casse et normalisation Unicode canonique & Les variantes typographiques deviennent comparables \\
+\hline
+\end{tabular}
+}
+\end{table}
+
+\noindent Cette normalisation réduit considérablement l'espace des variations superficielles, mais elle ne résout pas à elle seule le problème. Les variations sémantiques, telles que les alias ou les troncatures importantes, subsistent après normalisation et relèvent du matching flou et du modèle probabiliste.
 
 \section{Le moteur Splink}
 
@@ -164,7 +193,29 @@ VILLE & Correspondance exacte & Champ contextuel stable \\
 
 Comparer chaque paire d'enregistrements serait à la fois trop lent et contre-productif, car l'immense majorité des paires concerne des entités manifestement distinctes. Le blocking regroupe les enregistrements par clés de blocage, et seules les paires réunies dans un même bloc sont comparées. Le rappel du blocking, c'est-à-dire la proportion des vraies paires qui survivent à cette étape, est critique : une paire éliminée par le blocking ne pourra jamais être retrouvée par la suite.
 
-Le projet utilise une stratégie de blocking multi-passe, où plusieurs règles alternatives fonctionnent en disjonction : il suffit qu'une seule règle réunisse deux enregistrements pour que la paire devienne candidate. Les règles combinent un blocage strict sur les identifiants, qui capture les correspondances évidentes, un blocage intermédiaire qui associe la banque domiciliataire à un fragment du nom ou de l'identifiant, et un blocage large sur la seule banque qui sert de filet de sécurité lorsque l'identifiant est absent et le nom fortement altéré. Cette dernière règle génère davantage de candidats, ce qui illustre le compromis permanent entre le rappel et le coût de calcul. La figure suivante illustre la réduction progressive du nombre de paires à travers les étapes du pipeline.
+Le projet utilise une stratégie de blocking multi-passe, où plusieurs règles alternatives fonctionnent en disjonction : il suffit qu'une seule règle réunisse deux enregistrements pour que la paire devienne candidate. Le tableau suivant présente les trois niveaux de règles et le rôle de chacun.
+
+\begin{table}[H]
+\centering
+\caption{Règles de blocking multi-passe et rôle de chaque niveau.}
+\renewcommand{\arraystretch}{1.3}
+\setlength{\tabcolsep}{3pt}
+{\small
+\begin{tabular}{|p{5.5cm}|p{8.1cm}|}
+\hline
+\textbf{Règle} & \textbf{Rôle} \\
+\hline
+Égalité sur l'identifiant corrigé & Niveau strict : capture efficacement les correspondances évidentes avec peu de candidats \\
+\hline
+Même banque et fragment du nom ou de l'identifiant & Niveau intermédiaire : capture les cas où l'identifiant est partiellement altéré \\
+\hline
+Même banque domiciliataire seule & Niveau large : filet de sécurité lorsque l'identifiant est absent et le nom fortement altéré, au prix de davantage de candidats \\
+\hline
+\end{tabular}
+}
+\end{table}
+
+\noindent La règle large illustre le compromis permanent entre le rappel et le coût de calcul. La figure suivante illustre la réduction progressive du nombre de paires à travers les étapes du pipeline.
 
 \begin{figure}[H]
 \centering
@@ -204,7 +255,15 @@ Une fois entraîné, le modèle attribue à chaque paire candidate une probabili
 
 Les fonctions de comparaison classiques comparent les enregistrements caractère par caractère et ne capturent pas la similarité de sens : deux formulations différentes d'un même nom peuvent obtenir un score modéré alors même qu'un lecteur humain comprendrait immédiatement qu'elles désignent probablement la même entreprise. Pour capter cette dimension, le pipeline propose une étape optionnelle d'enrichissement par embeddings neuronaux.
 
-Le modèle utilisé est un modèle multilingue de plongement de phrases, capable d'encoder du texte en français, en arabe ou mixte dans un espace vectoriel dense où la proximité cosinus entre deux vecteurs reflète la proximité de sens. Ce caractère multilingue est important dans le contexte marocain, où les noms d'entreprises alternent fréquemment entre les deux langues. Seuls les champs textuels porteurs de sens sont encodés, à savoir les raisons sociales déclarées et corrigées, la ville et le donneur d'ordre. Les identifiants structurés, qui ne portent pas de sens linguistique, restent comparés par correspondance exacte.
+Le modèle utilisé est un modèle multilingue de plongement de phrases, capable d'encoder du texte en français, en arabe ou mixte dans un espace vectoriel dense où la proximité cosinus entre deux vecteurs reflète la proximité de sens. Ce caractère multilingue est important dans le contexte marocain, où les noms d'entreprises alternent fréquemment entre les deux langues. Seuls les champs textuels porteurs de sens sont encodés :
+
+\begin{itemize}
+    \item Les raisons sociales déclarées et corrigées, qui portent l'essentiel de l'identité textuelle de l'opérateur.
+    \item La ville, qui apporte un contexte géographique textuel.
+    \item Le donneur d'ordre, qui porte l'identité de l'émetteur de l'ordre.
+\end{itemize}
+
+\noindent Les identifiants structurés, qui ne portent pas de sens linguistique, restent comparés par correspondance exacte.
 
 Pour chaque paire candidate, la similarité cosinus entre les plongements est calculée puis combinée au score de Splink par une moyenne pondérée à parts égales. Lorsque cette étape est activée, le score combiné remplace le score de Splink pour la décision et pour le clustering. Les plongements sont mis en cache sur disque afin d'éviter de les recalculer à chaque exécution sur les mêmes données.
 
@@ -212,13 +271,68 @@ Pour chaque paire candidate, la similarité cosinus entre les plongements est ca
 
 Le pipeline produit à ce stade des paires de correspondances, mais l'objectif final est d'identifier des entités, c'est-à-dire des groupes d'enregistrements appartenant au même opérateur. La transformation des paires en groupes se modélise naturellement comme un problème de clustering sur graphe : les nœuds sont les enregistrements, les arêtes sont les paires retenues pondérées par leur score, et les communautés du graphe sont les entités recherchées.
 
-Deux stratégies sont proposées. Les composantes connexes forment des groupes en réunissant tous les enregistrements reliés par une chaîne de correspondances. Cette méthode est simple et déterministe, mais elle présente un risque d'enchaînement : un lien faible entre deux entités distinctes suffit à les fusionner artificiellement. L'algorithme de Leiden, qui optimise la modularité du graphe tout en garantissant des communautés bien connectées, offre une alternative plus sélective qui ne conserve que les groupes à structure interne forte. Ses paramètres, à savoir la résolution, le nombre de voisins issus des plongements et le seuil minimal des arêtes, sont configurables. Les groupes de taille excessive sont subdivisés afin d'éviter la formation de méga-groupes artificiels.
+Deux stratégies sont proposées. Les composantes connexes forment des groupes en réunissant tous les enregistrements reliés par une chaîne de correspondances. Cette méthode est simple et déterministe, mais elle présente un risque d'enchaînement : un lien faible entre deux entités distinctes suffit à les fusionner artificiellement. L'algorithme de Leiden, qui optimise la modularité du graphe tout en garantissant des communautés bien connectées, offre une alternative plus sélective qui ne conserve que les groupes à structure interne forte. Ses paramètres sont configurables :
+
+\begin{itemize}
+    \item La résolution, qui règle la granularité des communautés entre des groupes larges et des groupes resserrés.
+    \item Le nombre de voisins issus des plongements, qui densifie le graphe avec des arêtes de similarité sémantique.
+    \item La métrique de distance entre plongements, fixée au cosinus.
+    \item Le seuil minimal des arêtes, en dessous duquel une paire n'entre pas dans le graphe.
+\end{itemize}
+
+\noindent Les groupes de taille excessive sont subdivisés afin d'éviter la formation de méga-groupes artificiels. Le tableau suivant compare les deux stratégies.
+
+\begin{table}[H]
+\centering
+\caption{Comparaison des deux stratégies de clustering sur graphe.}
+\renewcommand{\arraystretch}{1.3}
+\setlength{\tabcolsep}{3pt}
+{\small
+\begin{tabular}{|p{3.4cm}|p{5.1cm}|p{5.1cm}|}
+\hline
+\textbf{Méthode} & \textbf{Avantage} & \textbf{Risque} \\
+\hline
+Composantes connexes & Simplicité et déterminisme, aucun paramètre à régler & Enchaînement : un lien faible fusionne artificiellement deux entités distinctes \\
+\hline
+Algorithme de Leiden & Sélectivité : ne conserve que les communautés à structure interne forte & Temps de calcul légèrement supérieur, paramètres à régler \\
+\hline
+\end{tabular}
+}
+\end{table}
 
 \section{La matérialisation des entités}
 
 Chaque communauté d'enregistrements est transformée en une entité dotée d'un identifiant unique construit à partir du run d'exécution. Pour chaque attribut identifiant, le système applique un vote majoritaire parmi les membres du groupe afin de déterminer la valeur canonique : le Registre de Commerce canonique, le nom canonique, la banque canonique et le guichet canonique. Le nom de l'entité suit une hiérarchie de priorité qui privilégie les versions corrigées des champs lorsqu'elles sont disponibles.
 
-Un statut est attribué à chaque entité en fonction de sa confiance : les entités de confiance élevée sont approuvées automatiquement, les entités de confiance intermédiaire sont soumises à révision humaine, et les entités de faible confiance ou de taille anormale sont signalées pour examen. Cette classification permet aux analystes de concentrer leur attention sur les cas qui nécessitent réellement un jugement humain.
+Un statut est attribué à chaque entité en fonction de sa confiance :
+
+\begin{itemize}
+    \item Les entités de confiance élevée sont approuvées automatiquement et exploitables directement.
+    \item Les entités de confiance intermédiaire sont soumises à révision humaine avant exploitation.
+    \item Les entités de faible confiance, ou de taille anormale, sont signalées pour examen approfondi.
+\end{itemize}
+
+\noindent Cette classification permet aux analystes de concentrer leur attention sur les cas qui nécessitent réellement un jugement humain. Le tableau suivant résume les statuts et l'action attendue pour chacun.
+
+\begin{table}[H]
+\centering
+\caption{Statuts des entités et action attendue.}
+\renewcommand{\arraystretch}{1.3}
+\setlength{\tabcolsep}{3pt}
+{\small
+\begin{tabular}{|p{3.4cm}|p{5.1cm}|p{5.1cm}|}
+\hline
+\textbf{Statut} & \textbf{Condition} & \textbf{Action de l'analyste} \\
+\hline
+Approuvée automatiquement & Confiance élevée du groupe & Aucune : exploitation directe \\
+\hline
+À réviser & Confiance intermédiaire du groupe & Révision humaine avant exploitation \\
+\hline
+Signalée & Faible confiance ou taille anormale du groupe & Examen approfondi du groupe \\
+\hline
+\end{tabular}
+}
+\end{table}
 
 \section{Vue d'ensemble du pipeline}
 

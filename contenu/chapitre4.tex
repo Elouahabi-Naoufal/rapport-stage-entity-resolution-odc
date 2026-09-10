@@ -44,6 +44,34 @@ La comparaison entre les approches de similarité textuelle montre un résultat 
 
 Les deux stratégies de clustering ont été comparées sur les mêmes paires retenues. Les composantes connexes produisent des groupes complets mais exposés au phénomène d'enchaînement, où un lien faible suffit à fusionner artificiellement deux entités distinctes. L'algorithme de Leiden produit des groupes plus resserrés en ne conservant que les communautés à structure interne forte, au prix d'un temps de calcul légèrement supérieur qui reste néanmoins négligeable devant celui de l'entraînement et de la prédiction. Pour un usage opérationnel où les fusions abusives sont plus coûteuses que les fragmentations résiduelles, la sélectivité de Leiden constitue un avantage.
 
+\subsection{Synthèse qualitative des analyses}
+
+Le tableau suivant résume l'apport observé de chaque composant, sans valeur chiffrée, tel qu'il ressort des analyses d'ablation et des comparaisons menées pendant le projet.
+
+\begin{table}[H]
+\centering
+\caption{Synthèse qualitative de l'apport de chaque composant du pipeline.}
+\renewcommand{\arraystretch}{1.3}
+\setlength{\tabcolsep}{3pt}
+{\small
+\begin{tabular}{|p{3.6cm}|p{10.0cm}|}
+\hline
+\textbf{Composant} & \textbf{Effet observé} \\
+\hline
+Normalisation des champs & Amélioration déterminante : les variations de format masquaient les ressemblances avant normalisation \\
+\hline
+Blocking multi-passe & Plafonne le rappel du système : les règles larges servent de filet de sécurité pour les cas dégradés \\
+\hline
+Seuil de décision & Comportement stable autour du seuil retenu, car les scores sont fortement polarisés \\
+\hline
+Embeddings neuronaux & Enrichissement utile pour les cas ambigus, sans effet décisif sur les noms courts et standardisés \\
+\hline
+Clustering de Leiden & Groupes plus sélectifs que les composantes connexes, préférables quand les fusions abusives sont coûteuses \\
+\hline
+\end{tabular}
+}
+\end{table}
+
 \section{Validation manuelle}
 
 \subsection{Protocole de validation}
@@ -52,21 +80,52 @@ En complément de l'évaluation quantitative, un échantillon de résultats a é
 
 \subsection{Observations}
 
-Sur les cas manifestes, le système se comporte comme attendu dans la quasi-totalité des situations. Sur les quasi-doublons trompeurs, la combinaison des indices permet généralement de maintenir la séparation des entités distinctes, notamment grâce au poids accordé aux identifiants structurés. Les cas limites restants relèvent principalement de deux situations : les entreprises homonymes, c'est-à-dire des entreprises distinctes qui partagent exactement le même nom et parfois la même activité, que seul un examen des identifiants officiels permet de départager ; et les entreprises existant sous plusieurs formes juridiques successives, où la décision de fusionner ou non dépend d'une connaissance de l'histoire de l'entreprise que les données ne contiennent pas toujours. Ces situations justifient le maintien d'une révision humaine pour les entités de confiance intermédiaire.
+Sur les cas manifestes, le système se comporte comme attendu dans la quasi-totalité des situations. Sur les quasi-doublons trompeurs, la combinaison des indices permet généralement de maintenir la séparation des entités distinctes, notamment grâce au poids accordé aux identifiants structurés. Les cas limites restants relèvent principalement de deux situations : les entreprises homonymes, c'est-à-dire des entreprises distinctes qui partagent exactement le même nom et parfois la même activité, que seul un examen des identifiants officiels permet de départager ; et les entreprises existant sous plusieurs formes juridiques successives, où la décision de fusionner ou non dépend d'une connaissance de l'histoire de l'entreprise que les données ne contiennent pas toujours. Ces situations justifient le maintien d'une révision humaine pour les entités de confiance intermédiaire. Le tableau suivant résume les cas examinés et le comportement attendu du système pour chacun.
+
+\begin{table}[H]
+\centering
+\caption{Cas de validation manuelle et comportement attendu du système.}
+\renewcommand{\arraystretch}{1.3}
+\setlength{\tabcolsep}{3pt}
+{\small
+\begin{tabular}{|p{4.5cm}|p{9.1cm}|}
+\hline
+\textbf{Cas} & \textbf{Comportement attendu} \\
+\hline
+Doublons manifestes & Regroupement des enregistrements aux noms quasi identiques en une seule entité \\
+\hline
+Quasi-doublons trompeurs & Maintien de la séparation des entités distinctes malgré la ressemblance des noms \\
+\hline
+Entreprises homonymes & Révision humaine, car le nom seul ne permet pas de trancher \\
+\hline
+Formes juridiques successives & Révision humaine, car la décision dépend de l'histoire de l'entreprise \\
+\hline
+\end{tabular}
+}
+\end{table}
 
 \section{Limites}
 
-La première limite tient à la nature synthétique des données d'évaluation. Aussi fidèle soit la reproduction des phénomènes observés, un jeu synthétique ne capture pas nécessairement toutes les spécificités des données historiques accumulées sur plusieurs années, avec leurs évolutions de format et leurs cas particuliers. Une validation complémentaire sur un échantillon de données réelles annotées manuellement reste donc nécessaire avant tout usage en production.
+Trois limites principales doivent être signalées :
 
-La deuxième limite concerne le passage à l'échelle. Le pipeline a été évalué sur des volumes de l'ordre de la centaine de milliers de déclarations, tandis que la base réelle en contient plusieurs millions. Les étapes les plus coûteuses, à savoir le blocking, l'entraînement EM et la prédiction, devront être testées et éventuellement optimisées sur ces volumes, par exemple par un traitement partitionné ou par une parallélisation accrue.
-
-La troisième limite tient à l'hypothèse d'indépendance conditionnelle des champs sur laquelle repose le modèle probabiliste. En pratique, certains champs sont corrélés entre eux, comme le code de guichet qui dépend de la banque, ou la forme juridique qui fait partie du nom. Cette hypothèse simplificatrice n'empêche pas d'excellentes performances empiriques, mais elle peut biaiser les probabilités estimées dans les cas ambigus.
+\begin{itemize}
+    \item La nature synthétique des données d'évaluation : aussi fidèle soit la reproduction des phénomènes observés, un jeu synthétique ne capture pas nécessairement toutes les spécificités des données historiques accumulées sur plusieurs années, avec leurs évolutions de format et leurs cas particuliers. Une validation complémentaire sur un échantillon de données réelles annotées manuellement reste donc nécessaire avant tout usage en production.
+    \item Le passage à l'échelle : le pipeline a été évalué sur des volumes de l'ordre de la centaine de milliers de déclarations, tandis que la base réelle en contient plusieurs millions. Les étapes les plus coûteuses, à savoir le blocking, l'entraînement EM et la prédiction, devront être testées et éventuellement optimisées sur ces volumes, par exemple par un traitement partitionné ou par une parallélisation accrue.
+    \item L'hypothèse d'indépendance conditionnelle des champs sur laquelle repose le modèle probabiliste : en pratique, certains champs sont corrélés entre eux, comme le code de guichet qui dépend de la banque, ou la forme juridique qui fait partie du nom. Cette hypothèse simplificatrice n'empêche pas d'excellentes performances empiriques, mais elle peut biaiser les probabilités estimées dans les cas ambigus.
+\end{itemize}
 
 \section{Perspectives}
 
-À court terme, la priorité est la validation du pipeline sur un échantillon de données réelles avec revue manuelle des entités par les experts métier de l'institution. Cette validation permettra de confirmer les performances mesurées sur données synthétiques et d'identifier les adaptations nécessaires aux spécificités des données historiques.
+Les perspectives s'ordonnent en trois horizons. À court terme, la priorité est la validation du pipeline sur un échantillon de données réelles avec revue manuelle des entités par les experts métier de l'institution. Cette validation permettra de confirmer les performances mesurées sur données synthétiques et d'identifier les adaptations nécessaires aux spécificités des données historiques.
 
-À moyen terme, plusieurs enrichissements sont envisageables : l'optimisation des performances pour le traitement de volumes de plusieurs millions de déclarations ; l'intégration du pipeline dans le processus périodique de chargement des déclarations, afin que les nouvelles déclarations soient rattachées aux entités existantes au fil de l'eau ; le développement d'un tableau de bord de suivi de la qualité des identifiants, qui alerterait sur les dégradations et orienterait les efforts de fiabilisation à la source ; et la mise en place d'un apprentissage actif, où les corrections apportées par les analystes lors de la révision alimenteraient l'amélioration continue du système.
+À moyen terme, plusieurs enrichissements sont envisageables :
+
+\begin{itemize}
+    \item L'optimisation des performances pour le traitement de volumes de plusieurs millions de déclarations.
+    \item L'intégration du pipeline dans le processus périodique de chargement des déclarations, afin que les nouvelles déclarations soient rattachées aux entités existantes au fil de l'eau.
+    \item Le développement d'un tableau de bord de suivi de la qualité des identifiants, qui alerterait sur les dégradations et orienterait les efforts de fiabilisation à la source.
+    \item La mise en place d'un apprentissage actif, où les corrections apportées par les analystes lors de la révision alimenteraient l'amélioration continue du système.
+\end{itemize}
 
 À long terme, le périmètre pourrait être étendu à d'autres tables de déclarations, et les entités résolues pourraient être rapprochées des référentiels externes d'entreprises pour enrichir encore la connaissance des opérateurs.
 

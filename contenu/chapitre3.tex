@@ -36,13 +36,61 @@ La plateforme suit une architecture en couches séparées, avec trois composants
 
 Cette séparation en couches présente plusieurs avantages. Les responsabilités sont clairement réparties : l'interface gère l'expérience utilisateur, le serveur d'API gère la logique métier et la persistance, et le worker gère le calcul intensif. Le worker peut être déployé sur une machine distincte dotée de davantage de mémoire sans modifier le reste du système, ce qui est précieux pour les étapes gourmandes telles que l'entraînement EM ou le calcul des plongements. Chaque composant peut également évoluer indépendamment tant que les contrats d'interface entre eux sont respectés.
 
-En contrepartie, cette architecture impose de maintenir la cohérence de l'état du système entre les composants : une exécution existe à la fois comme enregistrement en base, comme traitement actif dans le worker et comme affichage dans l'interface. Le diagnostic des incidents nécessite donc de suivre le flux d'une requête à travers les trois couches, ce que le suivi temps réel des exécutions facilite.
+En contrepartie, cette architecture impose de maintenir la cohérence de l'état du système entre les composants : une exécution existe à la fois comme enregistrement en base, comme traitement actif dans le worker et comme affichage dans l'interface. Le diagnostic des incidents nécessite donc de suivre le flux d'une requête à travers les trois couches, ce que le suivi temps réel des exécutions facilite. Le tableau suivant récapitule les composants, leurs technologies et leurs ports.
+
+\begin{table}[H]
+\centering
+\caption{Composants de la plateforme : technologies et ports.}
+\renewcommand{\arraystretch}{1.3}
+\setlength{\tabcolsep}{3pt}
+{\small
+\begin{tabular}{|p{3.4cm}|p{5.1cm}|p{5.1cm}|}
+\hline
+\textbf{Composant} & \textbf{Technologie} & \textbf{Port} \\
+\hline
+Interface & Application monopage React avec Vite & 5173 \\
+\hline
+Serveur d'API & Express sur Node.js avec typage TypeScript & 3001 \\
+\hline
+Worker d'exécution & FastAPI en Python avec Splink et DuckDB & 8001 \\
+\hline
+Base de la plateforme & PostgreSQL avec ORM typé & 5544 \\
+\hline
+Base source & SQL Server avec connexion ODBC & 1433 \\
+\hline
+\end{tabular}
+}
+\end{table}
 
 \section{Le serveur d'API}
 
-Le serveur d'API est développé avec le framework Express sur la plateforme Node.js, avec un typage strict en TypeScript. Il expose des routes REST pour la gestion des sources de données avec création, lecture, modification et suppression, pour la configuration des pipelines avec les règles de comparaison, les règles de blocage et les paramètres d'entraînement, pour le lancement et le suivi des exécutions, pour la consultation paginée des entités et des paires de correspondances, et pour la recherche intelligente d'opérateurs.
+Le serveur d'API est développé avec le framework Express sur la plateforme Node.js, avec un typage strict en TypeScript. Il expose des routes REST organisées par ressource, comme résumé dans le tableau suivant.
 
-La persistance est assurée par une base PostgreSQL accédée via un ORM typé, ce qui garantit la cohérence entre le schéma de la base et le code de l'application. Les mots de passe des sources de données sont chiffrés par un algorithme symétrique robuste avant leur stockage, avec une clé fournie par variable d'environnement, de sorte qu'une lecture directe de la base ne révèle jamais d'identifiants en clair. L'authentification des utilisateurs repose sur des jetons signés qui accompagnent chaque requête.
+\begin{table}[H]
+\centering
+\caption{Routes de l'API organisées par ressource.}
+\renewcommand{\arraystretch}{1.3}
+\setlength{\tabcolsep}{3pt}
+{\small
+\begin{tabular}{|p{3.4cm}|p{10.2cm}|}
+\hline
+\textbf{Ressource} & \textbf{Opérations} \\
+\hline
+Sources de données & Création, lecture, modification et suppression des connexions, avec chiffrement des mots de passe \\
+\hline
+Pipelines & Configuration des colonnes, des comparaisons, du blocage, de l'entraînement et du clustering \\
+\hline
+Exécutions & Lancement, suivi de progression, annulation et consultation des journaux \\
+\hline
+Entités et paires & Consultation paginée des entités résolues et des paires de correspondances \\
+\hline
+Recherche & Requêtes intelligentes d'opérateurs avec détection de type et synonymes \\
+\hline
+\end{tabular}
+}
+\end{table}
+
+\noindent La persistance est assurée par une base PostgreSQL accédée via un ORM typé, ce qui garantit la cohérence entre le schéma de la base et le code de l'application. Les mots de passe des sources de données sont chiffrés par un algorithme symétrique robuste avant leur stockage, avec une clé fournie par variable d'environnement, de sorte qu'une lecture directe de la base ne révèle jamais d'identifiants en clair. L'authentification des utilisateurs repose sur des jetons signés qui accompagnent chaque requête.
 
 \section{Le worker d'exécution}
 
@@ -123,7 +171,13 @@ Chaque exécution dispose d'une page de détail qui présente son statut global,
 
 \subsection{Visualisation des entités}
 
-La page des entités présente la liste des opérateurs identifiés par le pipeline. Chaque ligne affiche l'identifiant de l'entité, son nom canonique, ses codes de banque et de guichet, le nombre de déclarations qui lui sont rattachées et son statut. Le statut est matérialisé par un code couleur : les entités de confiance élevée sont approuvées automatiquement, les entités de confiance intermédiaire sont proposées à la révision, et les entités de faible confiance ou de taille anormale sont signalées. La fiche détaillée d'une entité présente l'ensemble de ses déclarations avec leurs champs, en distinguant les versions déclarées et corrigées des identifiants.
+La page des entités présente la liste des opérateurs identifiés par le pipeline. Chaque ligne affiche l'identifiant de l'entité, son nom canonique, ses codes de banque et de guichet, le nombre de déclarations qui lui sont rattachées et son statut. Le statut est matérialisé par un code couleur : les entités de confiance élevée sont approuvées automatiquement, les entités de confiance intermédiaire sont proposées à la révision, et les entités de faible confiance ou de taille anormale sont signalées. La fiche détaillée d'une entité présente l'ensemble de ses déclarations avec leurs champs, en distinguant les versions déclarées et corrigées des identifiants. Pour chaque déclaration, la fiche affiche :
+
+\begin{itemize}
+    \item Les identifiants de l'opérateur, avec les versions déclarées et corrigées du Registre de Commerce et de la raison sociale.
+    \item Le rattachement bancaire et géographique, avec les codes de banque et de guichet, le centre et la ville.
+    \item Le contexte de l'opération, avec le montant, la devise et la date d'exécution.
+\end{itemize}
 
 \begin{figure}[H]
 \centering
@@ -134,7 +188,16 @@ La page des entités présente la liste des opérateurs identifiés par le pipel
 
 \subsection{Recherche intelligente d'opérateurs}
 
-La barre de recherche constitue l'interface principale pour retrouver un opérateur. Elle accepte une requête unique en langage libre et détecte automatiquement le type de recherche : une requête purement numérique est interprétée comme un code de banque, une requête mixte comme un code de guichet, une requête au format du Registre de Commerce comme un identifiant, et toute autre requête comme un nom d'entreprise. La recherche combine l'indexation plein texte de la base avec des filtrages ciblés, en priorisant le nom canonique des entités puis les identifiants exacts. Un moteur de synonymes enrichit la requête avec les variantes connues, les résultats sont dédupliqués par entité, et le tri reflète la pertinence globale. Cette recherche permet ainsi de retrouver un opérateur même lorsque la requête ne reprend exactement aucune des formes stockées en base.
+La barre de recherche constitue l'interface principale pour retrouver un opérateur. Elle accepte une requête unique en langage libre et détecte automatiquement le type de recherche selon la forme de la requête :
+
+\begin{itemize}
+    \item Une requête purement numérique est interprétée comme un code de banque domiciliataire.
+    \item Une requête mixte de chiffres et de lettres est interprétée comme un code de guichet.
+    \item Une requête au format du Registre de Commerce est interprétée comme un identifiant d'opérateur.
+    \item Toute autre requête est interprétée comme un nom d'entreprise.
+\end{itemize}
+
+\noindent La recherche combine l'indexation plein texte de la base avec des filtrages ciblés, en priorisant le nom canonique des entités puis les identifiants exacts. Un moteur de synonymes enrichit la requête avec les variantes connues, les résultats sont dédupliqués par entité, et le tri reflète la pertinence globale. Cette recherche permet ainsi de retrouver un opérateur même lorsque la requête ne reprend exactement aucune des formes stockées en base.
 
 \section*{Conclusion}
 
