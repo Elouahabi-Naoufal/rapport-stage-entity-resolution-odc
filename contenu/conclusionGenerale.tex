@@ -5,68 +5,23 @@
 
 \section{Bilan g\'{e}n\'{e}ral}
 
-Au terme de ce projet de fin d'ann\'{e}e consacr\'{e} \`{a} l'\textbf{apport de l'Entity Resolution et du Machine Learning dans l'am\'{e}lioration de la qualit\'{e} des donn\'{e}es des op\'{e}rateurs de change \`{a} l'Office des Changes}, plusieurs enseignements fondamentaux ont pu '\^{e}tre d\'{e}gag\'{e}s.
+Au terme de ce projet consacr\'{e} \`{a} l'apport de l'Entity Resolution et du Machine Learning dans l'am\'{e}lioration de la qualit\'{e} des donn\'{e}es des op\'{e}rateurs de change \`{a} l'Office des Changes, plusieurs enseignements fondamentaux ont pu \^{e}tre d\'{e}gag\'{e}s.
 
-Ce rapport a permis, dans un premier temps, de pr\'{e}senter le cadre institutionnel de l'Office des Changes, dont la strat\'{e}gie 2025--2029 place la digitalisation et le contr\^{o}le intelligent au c\oe{}ur de ses ambitions. Dans un second temps, l'analyse approfondie de la table \texttt{RFF.formule\_P\_clean} --- avec ses 50 colonnes, son architecture duale dirty/\_R, et ses cinq tables de r\'{e}f\'{e}rence r\'{e}elles --- a mis en lumi\`{e}re la probl\'{e}matique structurelle de fragmentation de l'identit\'{e} des op\'{e}rateurs \'{e}conomiques. Dans un trois\`{e}me temps, la conception architecturale et les choix algorithmiques (mod\`{e}le Fellegi-Sunter, Leiden, contraintes d'identit\'{e}) ont \'{e}t\'{e} justifi\'{e}s th\'{e}oriquement. Enfin, l'impl\'{e}mentation de la plateforme compl\`{e}te --- pipeline \`{a} 9 \'{e}tapes, serveur API, base de donn\'{e}es, interface op\'{e}rationnelle --- a valid\'{e} la faisabilit\'{e} technique d'une solution automatis\'{e}e.
+Ce rapport a permis, dans un premier temps, de pr\'{e}senter le cadre institutionnel de l'Office des Changes, dont la strat\'{e}gie 2025--2029 place la digitalisation et le contr\^{o}le intelligent parmi ses priorit\'{e}s. Dans un second temps, la m\'{e}thodologie du linkage probabiliste multi-champs a \'{e}t\'{e} expos\'{e}e et justifi\'{e}e, et chaque \'{e}tape du pipeline a \'{e}t\'{e} d\'{e}crite en d\'{e}tail, depuis la pr\'{e}paration des donn\'{e}es jusqu'\`{a} la mat\'{e}rialisation des entit\'{e}s. Dans un troisi\`{e}me temps, l'architecture de la plateforme web a \'{e}t\'{e} pr\'{e}sent\'{e}e, avec la communication entre ses composants et ses fonctionnalit\'{e}s de configuration, de suivi, de visualisation et de recherche. Enfin, l'\'{e}valuation exp\'{e}rimentale sur donn\'{e}es synth\'{e}tiques avec v\'{e}rit\'{e} terrain a valid\'{e} l'efficacit\'{e} de l'ensemble.
 
-\section{R\'{e}ponse \`{a} La Probl\'{e}matique}
+\section{R\'{e}ponse \`{a} la probl\'{e}matique}
 
-Le pipeline d\'{e}velopp\'{e} r\'{e}pond \`{a} la probl\'{e}matique pos\'{e}e \`{a} travers six contributions concr\`{e}tes :
-
-\begin{enumerate}
-    \item \textbf{Architecture en 9 \'{e}tapes} : pipeline modulaire o\`{u} chaque \'{e}tape (chargement, nettoyage, normalisation, Splink, identit\'{e}, embeddings, clustering, mat\'{e}rialisation) est ind\'{e}pendante et testable.
-    \item \textbf{Normalisation s\'{e}mantique} : normalisateurs sp\'{e}cifiques aux dates (DD/MM/YYYY $\rightarrow$ YYYY-MM-DD), t\'{e}l\'{e}phones (suppression des non-chiffres) et identifiants (suppression des non-alphanum\'{e}riques), produisant un gain de +0,29 F1 sur sant\'{e} et +0,295 sur produits.
-    \item \textbf{Diagnostic blocking} : s\'{e}paration du blocking recall du matching recall, permettant d'identifier pr\'{e}cis\'{e}ment les goulots d'\'{e}tranglement (bottleneck blocage vs bottleneck matching vs faux m\'{e}langes).
-    \item \textbf{Contraintes d'identit\'{e} } : veto RC \'{e}liminant les faux positifs n\'{e}ologiques et matching d\'{e}terministe pour les correspondances certes.
-    \item \textbf{Benchmark multi-domain} : \'{e}valuation contr\^{o}l\'{e}e sur 5 domaines avec 38+ types de corruption, validant la g\'{e}n\'{e}ralisabilit\'{e} de l'architecture.
-    \item \textbf{Plateforme op\'{e}rationnelle} : interface web compl\`{e}te avec 17 pages, 74 endpoints API, base de donn\'{e}es PostgreSQL \`{a} 20 tables, et wizard de configuration en 10 \'{e}tapes.
-\end{enumerate}
+Le syst\`{e}me d\'{e}velopp\'{e} r\'{e}pond \`{a} la probl\'{e}matique pos\'{e}e \`{a} travers cinq contributions concr\`{e}tes. La premi\`{e}re est un pipeline d'Entity Resolution en neuf \'{e}tapes, o\`{u} chaque \'{e}tape est ind\'{e}pendante, configurable et observable, depuis le chargement des d\'{e}clarations jusqu'\`{a} l'\'{e}criture des entit\'{e}s r\'{e}solues. La deuxi\`{e}me est une pr\'{e}paration des donn\'{e}es en deux couches, qui combine un nettoyage g\'{e}n\'{e}rique et une normalisation m\'{e}tier tenant compte des sp\'{e}cificit\'{e}s marocaines des identifiants. La troisi\`{e}me est un moteur probabiliste fond\'{e} sur Splink avec entra\^{i}nement non supervis\'{e}, enrichi de mani\`{e}re optionnelle par la similarit\'{e} s\'{e}mantique neuronale et compl\'{e}t\'{e} par un clustering sur graphe avec mat\'{e}rialisation d'attributs canoniques. La quatri\`{e}me est une plateforme web compl\`{e}te qui rend l'ensemble accessible \`{a} des utilisateurs non informaticiens et qui propose une recherche intelligente d'op\'{e}rateurs. La cinqui\`{e}me est une \'{e}valuation rigoureuse sur jeu synth\'{e}tique avec v\'{e}rit\'{e} terrain, qui \'{e}tablit un F-score de 0,993 et qui \'{e}claire le r\^{o}le de chaque composant par des analyses d'ablation et une validation manuelle.
 
 \section{D\'{e}marche m\'{e}thodologique}
 
-La d\'{e}marche m\'{e}thodologique constitue la contribution la plus importante de ce projet. Les 18+ exp\'{e}riences r\'{e}alis\'{e}es ont d\'{e}montr\'{e} que :
+La d\'{e}marche m\'{e}thodologique constitue l'apport le plus durable de ce projet. Elle a montr\'{e} que les approches fond\'{e}es sur un identifiant unique ou sur des comparaisons exactes sont insuffisantes face aux variations et aux valeurs manquantes des donn\'{e}es r\'{e}elles. Elle a \'{e}tabli que la combinaison d'indices faibles par un mod\`{e}le probabiliste permet d'atteindre une qualit\'{e} quasi parfaite sans aucune donn\'{e}e annot\'{e}e. Elle a confirm\'{e} que la pr\'{e}paration des donn\'{e}es et le blocking sont au moins aussi d\'{e}terminants que le mod\`{e}le de scoring lui-m\^{e}me. Et elle a circonscrit avec pr\'{e}cision les situations qui justifient le maintien d'un contr\^{o}le humain, plut\^{o}t que de pr\'{e}tendre \`{a} une automatisation totale.
 
-\begin{itemize}
-    \item Les approches d\'{e}terministes sont insuffisantes pour le bruit r\'{e}el.
-    \item Le clustering non supervis\'{e} (TF-IDF + Leiden) produit des r\'{e}sultats interpr\'{e}tables sans donn\'{e}es labellis\'{e}es.
-    \item La qualit\'{e} du blocage est plus importante que la complexit\'{e} du mod\`{e}le.
-    \item La normalisation des champs (date, t\'{e}l\'{e}phone, identifiant) est l'am\'{e}lioration la plus significative (+0,29 F1 sur sant\'{e}).
-    \item Le vrai probl\`{e}me est souvent la g\'{e}n\'{e}ration de candidats (blocking) plut\^{o}t que le scoring des paires.
-\end{itemize}
+\section{Limites et perspectives}
 
-\noindent Chaque \'{e}chec exp\'{e}rimental a \'{e}t\'{e} trait\'{e} comme une information diagnostique, conduisant \`{a} une compr\'{e}hension progressive des contraintes du probl\`{e}me.
+L'absence de validation sur donn\'{e}es r\'{e}elles constitue la principale limite actuelle : seule une revue manuelle d'un \'{e}chantillon r\'{e}el par les experts m\'{e}tier permettra de confirmer les performances mesur\'{e}es sur donn\'{e}es synth\'{e}tiques. Le passage \`{a} l'\'{e}chelle vers des volumes de plusieurs millions de d\'{e}clarations devra \^{e}tre test\'{e} et optimis\'{e}. L'hypoth\`{e}se d'ind\'{e}pendance des champs, bien que sans cons\'{e}quence empirique majeure, invite \`{a} la prudence dans l'interpr\'{e}tation des probabilit\'{e}s individuelles.
 
-\section{Limites et Perspectives}
-
-\subsection*{Limites actuelles}
-
-L'\textbf{absence de validation sur donn\'{e}es r\'{e}elles} constitue la limite principale. Le benchmark synth\'{e}tique, aussi r\'{e}aliste soit-il, ne peut pas capturer toutes les sp\'{e}cificit\'{e}s des donn\'{e}es historiques de l'OdC. Une validation compl\'{e}mentaire sur un \'{e}chantillon r\'{e}el annot\'{e} manuellement (500--2\,000 paires) serait n\'{e}cessaire.
-
-\subsection*{Perspectives \`{a} court terme}
-\begin{itemize}
-    \item Validation du pipeline sur un \'{e}chantillon de donn\'{e}es r\'{e}elles avec revue manuelle des clusters par les experts m\'{e}tier.
-    \item Optimisation des performances pour le traitement de 2\,500\,000 d\'{e}clarations.
-    \item Int\'{e}gration du pipeline dans le processus de chargement d\'{e}cadeire des d\'{e}clarations.
-    \item Am\'{e}lioration du blocking pour les domaines \`{a} faible recall (entreprises, fournisseurs) par ajout de r\`{e}gles de blocage sur t\'{e}l\'{e}phone et email.
-\end{itemize}
-
-\subsection*{Perspectives \`{a} moyen terme}
-\begin{itemize}
-    \item Rapprochement automatis\'{e} entre les clusters d'op\'{e}rateurs et la table \texttt{OPERATEUR\_REF}.
-    \item D\'{e}veloppement d'un tableau de bord analytique de suivi de la qualit\'{e} des identifiants.
-    \item Extension du pipeline aux donn\'{e}es RCC.
-    \item Int\'{e}gration de la normalisation de date, t\'{e}l\'{e}phone et identifiant dans le pipeline de production.
-\end{itemize}
-
-\subsection*{Perspectives \`{a} long terme}
-\begin{itemize}
-    \item Int\'{e}gration de sources externes (registre OMPIC, donn\'{e}es douani\`{e}res).
-    \item D\'{e}veloppement d'un mod\`{e}le de d\'{e}tection d'anomalies comportementales.
-    \item Passage \`{a} un pipeline de d\'{e}duplication en temps r\'{e}el.
-    \item Extension du benchmark \`{a} des domaines suppl\'{e}mentaires et \`{a} des patterns de corruption plus complexes (translitt\'{e}rations, erreurs OCR).
-\end{itemize}
+Les perspectives s'ordonnent naturellement : validation sur donn\'{e}es r\'{e}elles \`{a} court terme, int\'{e}gration dans le processus p\'{e}riodique de chargement et tableau de bord de qualit\'{e} \`{a} moyen terme, extension \`{a} d'autres tables et rapprochement avec des r\'{e}f\'{e}rentiels externes \`{a} long terme.
 
 \bigskip
-\noindent En d\'{e}finitive, ce projet aura permis de d\'{e}montrer qu'une probl\'{e}matique de qualit\'{e} des donn\'{e}es peut '\^{e}tre adress\'{e}e par une approche technique rigoureuse combinant nettoyage de donn\'{e}es, Entity Resolution probabiliste et clustering non supervis\'{e}. La d\'{e}marche m\'{e}thodologique --- exploration syst\'{e}matique des approches, choix justifi\'{e}s \`{a} chaque \'{e}tape --- illustre la valeur d'une investigation rigoureuse. Le benchmark multi-domain a confirm\'{e} que la normalisation des champs est l'am\'{e}lioration la plus impactante, et que le diagnostic blocking vs matching permet d'identifier pr\'{e}cis\'{e}ment o\`{u} concentrer les efforts d'optimisation.
-
-\textbf{La plateforme est op\'{e}rationnelle. L'architectructure est solide. La m\'{e}thodologie est reproductible. Les r\'{e}sultats sont valid\'{e}s.}
+\noindent En d\'{e}finitive, ce projet aura permis de d\'{e}montrer qu'une probl\'{e}matique de qualit\'{e} des donn\'{e}es peut \^{e}tre adress\'{e}e par une approche technique rigoureuse combinant pr\'{e}paration des donn\'{e}es, Entity Resolution probabiliste et clustering non supervis\'{e}, le tout int\'{e}gr\'{e} dans une plateforme op\'{e}rationnelle et valid\'{e} par une \'{e}valuation rigoureuse. La plateforme est fonctionnelle, l'architecture est extensible, la m\'{e}thodologie est reproductible et les r\'{e}sultats sont \'{e}tablis.
