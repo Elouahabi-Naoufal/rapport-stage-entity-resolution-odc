@@ -142,93 +142,48 @@ Ce projet mobilise un ensemble de compétences à l'intersection de plusieurs do
 
 \section{Planning détaillé}
 
-Le stage s'est déroulé sur une période de deux mois, du 1\textsuperscript{er} juillet au 31 août 2026. Le tableau ci-dessous détaille les cinq phases du planning réel, en cohérence avec le diagramme de Gantt présenté en introduction générale.
+Le stage s'est déroulé sur une période de deux mois, du 1\textsuperscript{er} juillet au 31 août 2026. Le diagramme de Gantt ci-dessous détaille les cinq phases du planning réel, en cohérence avec la présentation synthétique donnée en introduction générale. Chaque phase est décomposée en tâches, et trois jalons matérialisent les validations intermédiaires du projet.
 
-\begin{table}[H]
+\begin{figure}[H]
 \centering
-\caption{Planning réel du stage, du 1\textsuperscript{er} juillet au 31 août 2026, en cinq phases avec chevauchements.}
-\renewcommand{\arraystretch}{1.3}
-\setlength{\tabcolsep}{3pt}
-\begin{tabularx}{\textwidth}{
-    |>{\raggedright\arraybackslash}p{0.24\textwidth}
-    |>{\centering\arraybackslash}p{0.10\textwidth}
-    |*{8}{>{\centering\arraybackslash}X|}}
-\hline
-\rowcolor{black!80}
-{\color{white}\textbf{Phase}} &
-{\color{white}\textbf{Période}} &
-{\color{white}\textbf{S1}} &
-{\color{white}\textbf{S2}} &
-{\color{white}\textbf{S3}} &
-{\color{white}\textbf{S4}} &
-{\color{white}\textbf{S5}} &
-{\color{white}\textbf{S6}} &
-{\color{white}\textbf{S7}} &
-{\color{white}\textbf{S8}} \\
-\hline
-\rowcolor{teal!25}
-\textbf{Ph.1} --- Exploration et cadrage &
-S1--S2 &
-\cellcolor{teal!60} &
-\cellcolor{teal!60} &
-&
-&
-&
-&
-&
-\\
-\hline
-\rowcolor{orange!20}
-\textbf{Ph.2} --- Pipeline d'Entity Resolution &
-S2--S5 &
-&
-\cellcolor{orange!50} &
-\cellcolor{orange!50} &
-\cellcolor{orange!50} &
-\cellcolor{orange!50} &
-&
-&
-\\
-\hline
-\rowcolor{blue!15}
-\textbf{Ph.3} --- Plateforme web &
-S4--S7 &
-&
-&
-&
-\cellcolor{blue!45} &
-\cellcolor{blue!45} &
-\cellcolor{blue!45} &
-\cellcolor{blue!45} &
-\\
-\hline
-\rowcolor{violet!15}
-\textbf{Ph.4} --- Évaluation &
-S6--S7 &
-&
-&
-&
-&
-&
-\cellcolor{violet!40} &
-\cellcolor{violet!40} &
-\\
-\hline
-\rowcolor{yellow!20}
-\textbf{Ph.5} --- Rédaction du rapport &
-S6--S8 &
-&
-&
-&
-&
-&
-\cellcolor{yellow!50} &
-\cellcolor{yellow!50} &
-\cellcolor{yellow!50}
-\\
-\hline
-\end{tabularx}
-\end{table}
+\begin{ganttchart}[
+  x unit=0.92cm,
+  y unit title=0.7cm,
+  y unit chart=0.6cm,
+  bar height=0.5,
+  group peaks width=0,
+  title height=1,
+  bar label font=\footnotesize,
+  group label font=\footnotesize,
+  milestone label font=\scriptsize,
+  canvas/.append style={draw=black},
+  vgrid={*1{draw=gray!30}},
+  hgrid={*1{draw=gray!20}}
+]{1}{8}
+\gantttitle{Juillet 2026}{4} \gantttitle{Août 2026}{4} \\
+\gantttitlelist{1,...,8}{1} \\
+\ganttgroup{Ph.1 Exploration et cadrage}{1}{2} \\
+\ganttbar{Base et réglementation}{1}{1} \\
+\ganttbar{État de l'art et choix de Splink}{1}{2} \\
+\ganttgroup{Ph.2 Pipeline d'Entity Resolution}{2}{5} \\
+\ganttbar{Nettoyage et normalisation}{2}{3} \\
+\ganttbar{Configuration Splink et EM}{3}{4} \\
+\ganttbar{Embeddings, clustering, entités}{4}{5} \\
+\ganttgroup{Ph.3 Plateforme web}{4}{7} \\
+\ganttbar{API et persistance}{4}{5} \\
+\ganttbar{Worker et suivi temps réel}{5}{6} \\
+\ganttbar{Interface et recherche}{6}{7} \\
+\ganttgroup{Ph.4 Évaluation}{6}{7} \\
+\ganttbar{Jeu synthétique et métriques}{6}{7} \\
+\ganttgroup{Ph.5 Rédaction du rapport}{6}{8} \\
+\ganttbar{Rédaction des chapitres}{6}{8} \\
+\ganttmilestone{Architecture validée}{2} \\
+\ganttmilestone{Pipeline fonctionnel}{5} \\
+\ganttmilestone{Plateforme déployée}{7}
+\end{ganttchart}
+\caption{Diagramme de Gantt détaillé du stage, du 1\textsuperscript{er} juillet au 31 août 2026 : cinq phases décomposées en tâches, avec trois jalons de validation.}
+\label{fig:gantt-detail}
+\end{figure}
 
 \begin{table}[H]
 \centering

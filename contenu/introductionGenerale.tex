@@ -8,67 +8,47 @@
 
 Dans un environnement économique mondial en perpétuelle mutation, la maîtrise des flux financiers internationaux constitue un enjeu stratégique majeur pour tout État soucieux de préserver l'équilibre de sa balance des paiements. Le Maroc, engagé dans une dynamique de libéralisation progressive de son régime de change, accorde une importance capitale au suivi rigoureux des opérations de change effectuées par les établissements bancaires.
 
-C'est dans ce cadre que l'\textbf{Office des Changes (OC)}, placé sous la tutelle du Ministère de l'Économie et des Finances, joue un rôle central. Pour accomplir ses missions statistiques et réglementaires, il s'appuie sur une base de données volumineuse — la table \texttt{RFF.formule\_P\_clean} — alimentée par les déclarations bancaires transmises par les établissements de crédit via le Répertoire des Flux Financiers (RFF).
+C'est dans ce cadre que l'Office des Changes, placé sous la tutelle du Ministère de l'Économie et des Finances, joue un rôle central. Pour accomplir ses missions statistiques et réglementaires, il s'appuie sur une base de données volumineuse alimentée par les déclarations bancaires transmises par les établissements de crédit via le Répertoire des Flux Financiers, dans le respect de l'Instruction Générale des Opérations de Change. La table formule\_P de cette base concentre les déclarations relatives aux opérations traitées par formule, avec pour chaque ligne les identifiants de l'opérateur concerné : le Registre de Commerce, la raison sociale déclarée et sa version corrigée, le donneur d'ordre, ainsi que les codes de la banque et du guichet domiciliataires.
 
-\textbf{La problématique centrale de ce projet} est la suivante : dans cette base de données, le même opérateur économique — une entreprise réalisant des opérations de change — apparaît sous des dizaines d'identités différentes et incohérentes. Le Registre de Commerce (\texttt{RC}) peut être formaté de multiples façons (\texttt{RC/040178}, \texttt{040 178}, \texttt{040178}) ou être absent~; la raison sociale peut être tronquée, abrégée ou orthographiée différemment selon la banque déclarante~; le donneur d'ordre peut varier d'une déclaration à l'autre. Cette fragmentation compromet directement la fiabilité des statistiques produites et l'efficacité des missions de contrôle de l'institution.
+La problématique centrale de ce projet est la suivante : dans cette base, le même opérateur économique apparaît sous des identités multiples et incohérentes. Le Registre de Commerce peut être saisi sous des formats différents selon la banque déclarante, ou être tout simplement absent de certaines déclarations. La raison sociale peut être tronquée, abrégée ou orthographiée différemment d'une déclaration à l'autre. Le donneur d'ordre peut varier alors même qu'il désigne la même entreprise. Certains champs ne contiennent aucune valeur sur de nombreuses lignes. Cette fragmentation compromet directement la fiabilité des statistiques produites et l'efficacité des missions de contrôle de l'institution, car il devient impossible de reconstituer avec certitude l'activité complète d'un opérateur donné par une simple recherche exacte sur ses identifiants.
 
-L'objectif de ce stage de fin d'année, réalisé au sein de la \textbf{Division Organisation \& AMOA} du Département Organisation \& Système d'Information, est de concevoir et déployer un \textbf{pipeline complet d'Entity Resolution} capable de détecter automatiquement que plusieurs enregistrements distincts correspondent au même opérateur économique réel. Ce pipeline s'articule en neuf étapes : chargement des données, sélection des colonnes, nettoyage lexicale, normalisation sémantique (dates, téléphones, identifiants), estimation probabiliste par Splink (modèle Fellegi-Sunter), application de contraintes d'identité (veto RC, matching déterministe), enrichissement par embeddings neuronaux, clustering par composantes connexes et algorithme de Leiden, puis matérialisation des entités résolues. Le système est opérationnel via une plateforme web complète comprenant 17 pages, 74 endpoints API et une base de données PostgreSQL à 20 tables.
+L'objectif de ce stage, réalisé au sein du Département Transformation Digitale et Gouvernance de la Donnée, est de concevoir et de déployer un pipeline complet d'Entity Resolution capable de détecter automatiquement que plusieurs enregistrements distincts correspondent au même opérateur économique réel, malgré les variations et les valeurs manquantes qui affectent leurs champs identifiants. Le pipeline s'articule en plusieurs étapes complémentaires : chargement des données depuis la base source, nettoyage générique, normalisation métier des identifiants marocains, estimation probabiliste des paires par Splink selon le modèle de Fellegi-Sunter avec entraînement non supervisé par algorithme EM, enrichissement optionnel par similarité sémantique neuronale, regroupement des paires en entités par clustering sur graphe, puis matérialisation des entités résolues avec leurs attributs canoniques. L'ensemble est piloté depuis une plateforme web complète qui permet de configurer les pipelines, de suivre leur exécution en temps réel, de visualiser les entités obtenues et de rechercher un opérateur par une barre de recherche intelligente.
 
-Ce rapport s'articule autour de quatre chapitres~: le premier présente le cadre institutionnel de l'Office des Changes~; le deuxième analyse la problématique de la qualité des données, la structure de la base et les approches d'Entity Resolution envisagées~; le troisième décrit la conception architecturale, les choix algorithmiques justifiés et l'implémentation technique de la plateforme~; le quatrième présente la validation expérimentale sur données réelles et synthétiques, avec un diagnostic détaillé du blocking et de la normalisation.
+Ce rapport s'articule autour de quatre chapitres : le premier présente le cadre institutionnel de l'Office des Changes et le contexte du stage ; le deuxième expose la méthodologie d'Entity Resolution retenue et décrit en détail chaque étape du pipeline ; le troisième décrit l'architecture de la plateforme, la communication entre ses composants et ses fonctionnalités ; le quatrième présente le protocole d'évaluation, les résultats obtenus sur données synthétiques avec vérité terrain, ainsi que les limites et les perspectives du travail réalisé.
 
 \subsection{Planning du stage}
 
-Le stage s'est déroulé sur 2 mois, du 7 juillet au 30 août 2026.
+Le stage s'est déroulé sur deux mois, du 1\textsuperscript{er} juillet au 31 août 2026, soit huit semaines. Le diagramme de Gantt ci-dessous retrace le déroulement réel du projet, organisé en cinq phases qui se chevauchent partiellement, comme c'est le cas dans tout projet où le développement, l'évaluation et la documentation avancent en parallèle.
 
 \begin{figure}[H]
 \centering
-\resizebox{0.85\textwidth}{!}{%
-\begin{tikzpicture}[
-  phase/.style={rectangle, rounded corners=2pt, draw=black, thick, minimum height=0.5cm, align=center, font=\scriptsize},
-  phase1/.style={phase, fill=blue!15},
-  phase2/.style={phase, fill=orange!15},
-  phase3/.style={phase, fill=green!15},
-  phase4/.style={phase, fill=violet!15},
-  month/.style={font=\footnotesize, anchor=south},
-  week/.style={font=\tiny, anchor=north, text=gray}
-]
-
-% Months
-\node[month] at (0, 0) {Juillet};
-\node[month] at (6.75, 0) {Ao\^{u}t};
-
-% Grid lines
-\draw[gray!30] (0, -0.3) -- (0, -7.5);
-\draw[gray!30] (6.75, -0.3) -- (6.75, -7.5);
-\draw[gray!30] (13.5, -0.3) -- (13.5, -7.5);
-
-% Phase 1: Exploration (weeks 1-2)
-\node[phase1] (p1) at (1.68, -1) {Exploration};
-\node[week, left] at (p1.west) {Sem. 1--2};
-\draw[phase1] (0, -1) rectangle (3.37, -1.5);
-
-% Phase 2: Design (weeks 2-3)
-\node[phase2] (p2) at (4.2, -2.5) {Conception};
-\node[week, left] at (p2.west) {Sem. 2--3};
-\draw[phase2] (3.37, -2.5) rectangle (5.85, -3);
-
-% Phase 3: Implementation (weeks 3-6)
-\node[phase3] (p3) at (7.6, -4) {Impl\'{e}mentation};
-\node[week, left] at (p3.west) {Sem. 3--6};
-\draw[phase3] (5.85, -4) rectangle (10.1, -4.5);
-
-% Phase 4: Validation (weeks 6-8)
-\node[phase4] (p4) at (11.5, -5.5) {Validation};
-\node[week, left] at (p4.west) {Sem. 6--8};
-\draw[phase4] (10.1, -5.5) rectangle (13.5, -6);
-
-% Milestones
-\node[font=\tiny, fill=yellow!50, rounded corners=1pt, inner sep=2pt] at (3.37, -7) {D\'{e}couvertes};
-\node[font=\tiny, fill=yellow!50, rounded corners=1pt, inner sep=2pt] at (8.5, -7) {Pipeline OK};
-\node[font=\tiny, fill=yellow!50, rounded corners=1pt, inner sep=2pt] at (11.8, -7) {Validation};
-
-\end{tikzpicture}%
-}
-\caption{Planning du stage --- 2 mois, 4 phases}
+\begin{ganttchart}[
+  x unit=1.28cm,
+  y unit title=0.7cm,
+  y unit chart=0.65cm,
+  bar height=0.5,
+  group peaks width=0,
+  title height=1,
+  bar label font=\footnotesize,
+  group label font=\footnotesize,
+  milestone label font=\footnotesize,
+  canvas/.append style={draw=black},
+  vgrid={*1{draw=gray!30}},
+  hgrid={*1{draw=gray!20}}
+]{1}{8}
+\gantttitle{Juillet 2026}{4} \gantttitle{Août 2026}{4} \\
+\gantttitlelist{1,...,8}{1} \\
+\ganttgroup{Exploration et cadrage}{1}{2} \\
+\ganttbar{Pipeline d'Entity Resolution}{2}{5} \\
+\ganttbar{Plateforme web}{4}{7} \\
+\ganttbar{Évaluation expérimentale}{6}{7} \\
+\ganttbar{Rédaction du rapport}{6}{8} \\
+\ganttmilestone{Architecture validée}{2} \\
+\ganttmilestone{Pipeline fonctionnel}{5} \\
+\ganttmilestone{Plateforme déployée}{7}
+\end{ganttchart}
+\caption{Planning réel du stage, du 1\textsuperscript{er} juillet au 31 août 2026, en cinq phases avec trois jalons de validation.}
 \label{fig:gantt}
 \end{figure}
+
+La première phase, consacrée à l'exploration, couvre la prise de connaissance de la base de données et de la table formule\_P, l'étude de la réglementation des changes applicable aux déclarations bancaires, et l'état de l'art des approches d'Entity Resolution ayant conduit au choix du linkage probabiliste. La deuxième phase correspond au développement du pipeline : nettoyage, normalisation, configuration de Splink, entraînement EM, embeddings et clustering. La troisième phase couvre la construction de la plateforme web, avec le serveur d'API, le worker d'exécution et l'interface utilisateur. La quatrième phase est dédiée à l'évaluation rigoureuse sur jeu de données synthétique. La cinquième phase, qui chevauche les précédentes, correspond à la rédaction du présent rapport. Trois jalons structurent l'avancement : la validation de l'architecture à l'issue de l'exploration, le pipeline fonctionnel de bout en bout, et la plateforme déployée et testée.

@@ -1,371 +1,208 @@
-\chapter{Probl\'{e}matique, Analyse des Donn\'{e}es et Exploration des Approches d'Entity Resolution}
+\chapter{Méthodologie et Pipeline d'Entity Resolution}
 
-Ce chapitre analyse la structure de la base de donn\'{e}es \texttt{RFF.formule\_P\_clean}, établit le diagnostic de la probl\'{e}matique de qualit\'{e} des donn\'{e}es, puis documente l'exploration syst\'{e}matique des approches d'Entity Resolution test\'{e}es avant l'architecture finale.
+Ce chapitre expose la méthodologie retenue pour résoudre la problématique de fragmentation des identités, puis décrit en détail chaque étape du pipeline d'Entity Resolution tel qu'il a été implémenté. L'exposé suit une progression pédagogique : il part des concepts fondamentaux, justifie le choix du linkage probabiliste multi-champs, puis présente successivement la préparation des données, le moteur Splink, l'enrichissement sémantique, le clustering et la matérialisation des entités.
 
-\section{Architecture de la base de donn\'{e}es}
+\section{Concepts fondamentaux de l'Entity Resolution}
 
-\subsection{La table principale : \texttt{RFF.formule\_P\_clean}}
+\subsection{Entité, enregistrement et doublon}
 
-La table \texttt{RFF.formule\_P\_clean} contient \textbf{50 colonnes} décrivant chaque d\'{e}claration bancaire re\c{c}ue par l'Office des Changes. Son architecture repose sur un principe dual : pour chaque champ m\'{e}tier sensible, deux colonnes coexistent --- la valeur \textbf{d\'{e}clar\'{e}e par la banque} (bruit\'{e}e) et la valeur \textbf{corrig\'{e}e par l'OdC} suffix\'{e}e \texttt{\_R} (v\'{e}rifi\'{e}e).
+Une entité désigne un objet du monde réel. Dans le contexte de ce projet, une entité est un opérateur économique, c'est-à-dire une entreprise ou une personne réalisant des opérations de change suivies par l'Office des Changes. Une entité est unique par nature : il n'existe qu'une seule entreprise donnée dans la réalité, même si elle effectue des milliers d'opérations.
+
+Un enregistrement, en revanche, est une ligne de la base de données décrivant une opération de change. Chaque enregistrement porte des attributs qui décrivent l'opérateur concerné, tels que le Registre de Commerce, la raison sociale ou le donneur d'ordre. Or ces attributs peuvent varier d'un enregistrement à l'autre alors même qu'ils désignent la même entité, parce que les déclarations sont saisies par des banques différentes, à des moments différents, avec des conventions de saisie différentes.
+
+Deux enregistrements sont des doublons au sens de l'Entity Resolution lorsqu'ils font référence à la même entité réelle, même si leurs attributs ne sont pas strictement identiques. Cette définition distingue l'Entity Resolution de la déduplication classique, qui ne traite que des lignes rigoureusement identiques et serait donc impuissante face aux variations observées dans la table formule\_P.
+
+\subsection{Pourquoi l'identification exacte est insuffisante}
+
+La difficulté fondamentale du problème vient du fait que les variations affectant les identifiants ne sont pas aléatoires mais suivent des motifs liés aux pratiques de saisie. Les erreurs de frappe transforment un caractère en un autre caractère proche. Les formats diffèrent d'une banque à l'autre pour un même identifiant, avec des préfixes, des espaces ou des séparateurs ajoutés ou omis. Certaines déclarations ne contiennent aucune valeur pour des champs pourtant essentiels à l'identification. Les noms d'entreprises apparaissent sous des formes abrégées, tronquées ou aliasées. Enfin, la coexistence dans une même ligne d'une version déclarée et d'une version corrigée d'un même champ introduit une ambiguïté supplémentaire lorsque les deux versions divergent.
+
+Face à ces phénomènes, une recherche exacte sur un identifiant unique échoue dès qu'une variation survient. Une comparaison floue appliquée champ par champ tolère les fautes de frappe mais ne capture pas la force combinée de plusieurs indices concordants. Seule une approche qui combine les indices portés par l'ensemble des champs permet de décider de manière fiable si deux enregistrements désignent la même entité.
+
+\section{Le choix du linkage probabiliste multi-champs}
+
+\subsection{Aucun champ ne suffit à lui seul}
+
+Le Registre de Commerce devrait théoriquement identifier une entreprise de manière unique. En pratique, il est parfois absent des déclarations, parfois saisi sous un format non standard, et deux entreprises distinctes peuvent présenter des numéros proches. La raison sociale porte une information sémantique riche mais varie dans son orthographe et sa formulation. Les codes de banque et de guichet sont stables et fiables car ils suivent une codification officielle, mais ils sont partagés par de nombreux opérateurs domiciliés dans le même établissement. Les montants et les devises décrivent l'opération et non l'opérateur, et ne permettent donc pas l'identification.
+
+Aucun champ pris isolément ne permet d'identifier un opérateur avec fiabilité. En revanche, la convergence de plusieurs indices faibles peut produire une preuve forte : un Registre de Commerce identique constitue un indice fort mais parfois indisponible, un nom similaire constitue un indice moyen, une même banque domiciliataire constitue un indice contextuel. C'est précisément cette combinaison d'indices que le modèle probabiliste formalise.
+
+\subsection{Le modèle de Fellegi-Sunter}
+
+Le pipeline repose sur le modèle probabiliste de Fellegi et Sunter, publié en 1969, qui constitue le fondement théorique de l'Entity Resolution moderne. Pour chaque paire d'enregistrements, le modèle décrit la paire par un vecteur de comparaisons, c'est-à-dire un score de similarité par champ. Chaque champ contribue ensuite au score global avec un poids proportionnel à sa capacité discriminante, apprise automatiquement à partir des données. Le score agrégé s'exprime comme le logarithme du rapport de vraisemblance entre l'hypothèse selon laquelle les deux enregistrements désignent la même entité et l'hypothèse selon laquelle ils désignent des entités différentes :
+
+\[
+\log \frac{P(\gamma \in \Gamma_M \mid r_i, r_j)}{P(\gamma \in \Gamma_U \mid r_i, r_j)} = \sum_{k=1}^{n} \log \frac{P(\gamma_k \mid \Gamma_M)}{P(\gamma_k \mid \Gamma_U)}
+\]
+
+où chaque $\gamma_k$ représente la comparaison sur le $k$-ième attribut, $\Gamma_M$ désigne l'ensemble des paires qui correspondent à une même entité et $\Gamma_U$ l'ensemble des paires qui correspondent à des entités différentes. Les probabilités qui interviennent dans cette formule sont estimées par l'algorithme EM, pour Expectation-Maximization, directement à partir des données et sans nécessiter d'exemples annotés manuellement. Cette capacité d'apprentissage non supervisé est déterminante dans le contexte du projet, car il n'existe pas de vérité terrain sur les données réelles de l'institution.
+
+\section{La similarité entre chaînes de caractères}
+
+\subsection{La distance de Jaro-Winkler}
+
+La comparaison des champs textuels, tels que la raison sociale ou le donneur d'ordre, utilise la distance de Jaro-Winkler. Pour deux chaînes $s_1$ et $s_2$, elle se définit à partir de la similarité de Jaro par :
+
+\[
+\text{JW}(s_1, s_2) = \text{Jaro}(s_1, s_2) + \ell \cdot p \cdot (1 - \text{Jaro}(s_1, s_2))
+\]
+
+où $\ell$ est la longueur du préfixe commun aux deux chaînes, plafonnée à quatre caractères, et $p$ est un facteur d'échelle conventionallement fixé à 0,1. Cette métrique accorde ainsi un bonus aux chaînes qui commencent de la même manière, ce qui la rend particulièrement adaptée aux noms d'entreprises : deux variantes d'un même nom partagent généralement leurs premiers mots, tandis que deux noms distincts diffèrent souvent dès le début. Elle tolère en revanche les variations de terminaison, telles que les formes juridiques ou les suffixes géographiques.
+
+\subsection{La correspondance exacte pour les champs structurés}
+
+Les champs structurés et fiables, tels que les codes de banque et de guichet, le centre ou le sens de l'opération, sont comparés par correspondance exacte : le score vaut un si les deux valeurs sont identiques et zéro sinon. Ce choix reflète la nature de ces champs, qui suivent des codifications officielles et ne présentent pas de variations orthographiques. Leur rôle dans le modèle est de fournir des indices contextuels stables qui renforcent ou affaiblissent la décision globale.
+
+\section{Préparation des données}
+
+La préparation des données ne constitue pas en soi de l'Entity Resolution, mais elle conditionne l'efficacité de toutes les étapes suivantes. Sans préparation, deux variantes d'un même identifiant seraient considérées comme totalement différentes par les fonctions de comparaison. Le pipeline implémente deux couches successives de préparation, toutes deux configurables depuis la plateforme.
+
+\subsection{Le nettoyage générique}
+
+La première couche élimine les artefacts de saisie sans connaissance métier. Les espaces superflus en début et en fin de chaîne sont supprimés. Les différentes représentations de l'absence de valeur, telles que les chaînes vides ou les marqueurs textuels d'absence, sont converties en valeurs nulles explicites afin d'être traitées uniformément par la suite. Les caractères de contrôle invisibles hérités des transferts de fichiers sont supprimés. Enfin, les lignes rigoureusement identiques sont dédupliquées, car elles n'apportent aucune information au modèle probabiliste.
+
+\subsection{La normalisation métier}
+
+La seconde couche applique des règles qui tiennent compte des spécificités marocaines des identifiants. Le Registre de Commerce est normalisé en supprimant son préfixe littéral et les séparateurs tels que les espaces et les tirets, puis en uniformisant la casse, de sorte que les différentes graphies d'un même numéro deviennent comparables. Les codes de banque et de guichet sont ramenés à une largeur canonique par ajout de zéros non significatifs en tête, ce qui permet de comparer des codes saisis avec ou sans ces zéros. Les noms d'entreprises sont normalisés en réduisant les espaces multiples, en uniformisant les abréviations de formes juridiques vers leurs formes canoniques courtes, et en supprimant la ponctuation finale. La casse est uniformisée et les caractères accentués sont normalisés selon la forme canonique Unicode.
+
+Cette normalisation réduit considérablement l'espace des variations superficielles, mais elle ne résout pas à elle seule le problème. Les variations sémantiques, telles que les alias ou les troncatures importantes, subsistent après normalisation et relèvent du matching flou et du modèle probabiliste.
+
+\section{Le moteur Splink}
+
+Splink est le moteur de linkage probabiliste retenu pour ce projet. Développé pour le traitement de millions d'enregistrements administratifs, il implémente nativement le modèle de Fellegi-Sunter avec entraînement non supervisé, gère les valeurs manquantes champ par champ, et s'appuie sur le moteur analytique DuckDB pour exécuter efficacement les jointures et les comparaisons sur des volumes de plusieurs dizaines de milliers de lignes.
+
+\subsection{Les comparaisons configurées}
+
+Chaque champ comparé est associé à une fonction de comparaison adaptée à sa nature. Les identifiants entiers, à savoir le Registre de Commerce et sa version corrigée, sont comparés par correspondance exacte, car deux entiers égaux désignent le même identifiant sans ambiguïté de format après normalisation. Les champs textuels bruités, à savoir les raisons sociales déclarées et corrigées ainsi que le donneur d'ordre, sont comparés par la distance de Jaro-Winkler avec des seuils multiples qui distinguent les niveaux de similarité. Les codes structurés, tels que les codes de banque et de guichet, sont comparés par correspondance exacte. Le tableau suivant résume la configuration retenue pour la table formule\_P.
 
 \begin{table}[H]
 \centering
-\caption{Colonnes cl\'{e}s de \texttt{RFF.formule\_P\_clean} par groupe fonctionnel}
+\caption{Fonctions de comparaison configurées pour les champs de la table formule\_P.}
 \renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|p{2.8cm}|p{4.5cm}|p{4.5cm}|p{2cm}|}
+\setlength{\tabcolsep}{3pt}
+{\small
+\begin{tabular}{|p{4.0cm}|p{3.6cm}|p{6.0cm}|}
 \hline
-\textbf{Groupe} & \textbf{Colonne d\'{e}clar\'{e}e (bruit\'{e}e)} & \textbf{Colonne corrig\'{e}e OdC (\_R)} & \textbf{Nullable} \\
+\textbf{Champ} & \textbf{Fonction} & \textbf{Justification} \\
 \hline
-Identit\'{e} op\'{e}rateur & \texttt{RC}, \texttt{RAISON\_SOCIALE}, \texttt{DONNEUR\_ORDRE} & \texttt{RC\_R}, \texttt{RAISON\_SOCIALE\_R}, \texttt{DONNEUR\_ORDRE\_R} & Oui \\
+RC & Correspondance exacte & Identifiant entier, comparé à l'égalité stricte \\
 \hline
-Banque & \texttt{CODE\_BANQUE} & \texttt{CODE\_BANQUE\_BAM} (toujours correct) & Oui \\
+RC\_R & Correspondance exacte & Identifiant entier corrigé, comparé à l'égalité stricte \\
 \hline
-Guichet & \texttt{CODE\_GUICHET} & \texttt{CODE\_GUICHET\_BAM} (toujours correct) & Oui \\
+RAISON\_SOCIALE & Jaro-Winkler à seuils & Nom avec variations orthographiques et alias \\
 \hline
-Centre OdC & \texttt{CENTRE} & \texttt{CENTRE\_R} (98\,\% correct) & Oui \\
+RAISON\_SOCIALE\_R & Jaro-Winkler à seuils & Nom corrigé avec variations résiduelles \\
 \hline
-Op\'{e}ration & \texttt{CODE\_OPERATION} & \texttt{CODE\_OPERATION\_R} & Oui \\
+DONNEUR\_ORDRE & Jaro-Winkler à seuils & Identité de l'émetteur, formulation variable \\
 \hline
-Montants & \texttt{MONTANT\_DHS}, \texttt{MONTANT\_DEVISE}, \texttt{COURS} & \texttt{MONTANT\_DHS\_R}, \texttt{MONTANT\_DHS\_CALC} & Oui \\
+CODE\_BANQUE\_BAM & Correspondance exacte & Code structuré suivant une codification officielle \\
 \hline
-Pays & \texttt{CODE\_PAYS}, \texttt{PAYS\_PARTENAIRE} & \texttt{CODE\_PAYS\_R}, \texttt{PAYS\_PARTENAIRE\_R} & Oui \\
+CODE\_GUICHET\_BAM & Correspondance exacte & Code structuré suivant une codification officielle \\
+\hline
+CENTRE & Correspondance exacte & Champ contextuel stable \\
+\hline
+VILLE & Correspondance exacte & Champ contextuel stable \\
 \hline
 \end{tabular}
+}
 \end{table}
 
-\noindent\textbf{R\`{e}gle fondamentale :} tout champ suffix\'{e} \texttt{\_R} = valeur \textbf{v\'{e}rifi\'{e}e et corrig\'{e}e par l'OdC}. La version sans \texttt{\_R} = valeur \textbf{d\'{e}clar\'{e}e par la banque}, pouvant contenir des erreurs. La seule colonne NOT NULL est \texttt{ID\_FORMULE} (cl\'{e} primaire interne).
+\subsection{Le blocking et la réduction de l'espace de recherche}
 
-% ---- Sch\'{e}ma architecture duale dirty / _R ----
+Comparer chaque paire d'enregistrements serait à la fois trop lent et contre-productif, car l'immense majorité des paires concerne des entités manifestement distinctes. Le blocking regroupe les enregistrements par clés de blocage, et seules les paires réunies dans un même bloc sont comparées. Le rappel du blocking, c'est-à-dire la proportion des vraies paires qui survivent à cette étape, est critique : une paire éliminée par le blocking ne pourra jamais être retrouvée par la suite.
+
+Le projet utilise une stratégie de blocking multi-passe, où plusieurs règles alternatives fonctionnent en disjonction : il suffit qu'une seule règle réunisse deux enregistrements pour que la paire devienne candidate. Les règles combinent un blocage strict sur les identifiants, qui capture les correspondances évidentes, un blocage intermédiaire qui associe la banque domiciliataire à un fragment du nom ou de l'identifiant, et un blocage large sur la seule banque qui sert de filet de sécurité lorsque l'identifiant est absent et le nom fortement altéré. Cette dernière règle génère davantage de candidats, ce qui illustre le compromis permanent entre le rappel et le coût de calcul. La figure suivante illustre la réduction progressive du nombre de paires à travers les étapes du pipeline.
+
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-  font=\small,
-  rowdirty/.style={rectangle, draw=orange!70!black, fill=orange!15, minimum width=4.2cm, minimum height=0.55cm, text centered},
-  rowclean/.style={rectangle, draw=teal!70!black,  fill=teal!15,  minimum width=4.2cm, minimum height=0.55cm, text centered},
-  rowkey/.style ={rectangle, draw=gray!60,         fill=gray!10,  minimum width=4.2cm, minimum height=0.55cm, text centered},
-  header/.style ={rectangle, draw=black, fill=black!80, text=white, minimum width=4.2cm, minimum height=0.65cm, text centered, font=\small\bfseries},
-  arrow/.style  ={-{Stealth[length=4pt]}, thick, gray!60}
+  box/.style={rectangle, rounded corners=3pt, draw=black, thick, minimum width=2.6cm, minimum height=1.1cm, align=center, font=\scriptsize},
+  input/.style={box, fill=red!12, draw=red!60!black},
+  process/.style={box, fill=orange!12, draw=orange!60!black},
+  output/.style={box, fill=green!12, draw=green!60!black},
+  arr/.style={-{Latex[length=2mm]}, thick},
+  label/.style={font=\tiny, text=gray!70!black}
 ]
-\node[header] (hL) at (0,0) {Valeur d\'{e}clar\'{e}e (banque)};
-\node[rowdirty, below=0pt of hL] (rc)    {\texttt{RC}};
-\node[rowdirty, below=0pt of rc]  (rs)    {\texttt{RAISON\_SOCIALE}};
-\node[rowdirty, below=0pt of rs]  (don)    {\texttt{DONNEUR\_ORDRE}};
-\node[rowdirty, below=0pt of don]  (cb)    {\texttt{CODE\_BANQUE}};
-\node[rowdirty, below=0pt of cb]  (cg)    {\texttt{CODE\_GUICHET}};
-\node[rowdirty, below=0pt of cg]  (ce)    {\texttt{CENTRE}};
-\node[rowdirty, below=0pt of ce]  (co)    {\texttt{CODE\_OPERATION}};
-\node[rowdirty, below=0pt of co]  (cp)    {\texttt{CODE\_PAYS}};
-\node[rowdirty, below=0pt of cp]  (md)    {\texttt{MONTANT\_DHS}};
-
-\node[header]  (hR) at (5.4,0) {Valeur corrig\'{e}e OdC (\_R)};
-\node[rowclean, below=0pt of hR] (rcr)   {\texttt{RC\_R}};
-\node[rowclean, below=0pt of rcr] (rsr)  {\texttt{RAISON\_SOCIALE\_R}};
-\node[rowclean, below=0pt of rsr] (donr)  {\texttt{DONNEUR\_ORDRE\_R}};
-\node[rowclean, below=0pt of donr] (cbr)  {\texttt{CODE\_BANQUE\_BAM} *};
-\node[rowclean, below=0pt of cbr] (cgr)  {\texttt{CODE\_GUICHET\_BAM} *};
-\node[rowclean, below=0pt of cgr] (cer)  {\texttt{CENTRE\_R}};
-\node[rowclean, below=0pt of cer] (cor)  {\texttt{CODE\_OPERATION\_R}};
-\node[rowclean, below=0pt of cor] (cpr)  {\texttt{CODE\_PAYS\_R}};
-\node[rowclean, below=0pt of cpr] (mdr)  {\texttt{MONTANT\_DHS\_CALC}};
-
-\node[rowkey] (id) at (2.7, -0.325) {\texttt{ID\_FORMULE} \textbf{(PK)}};
-
-\foreach \l/\r in {rc/rcr, rs/rsr, don/donr, cb/cbr, cg/cgr, ce/cer, co/cor, cp/cpr, md/mdr}{
-  \draw[arrow] (\l.east) -- (\r.west);
-}
-
-\node[rowdirty, minimum width=2.2cm] (leg1) at (1.0, -6.2) {Bruit\'{e} (banque)};
-\node[rowclean, minimum width=2.2cm] (leg2) at (4.0, -6.2) {V\'{e}rifi\'{e} OdC (\_R)};
-\node[below=2pt of leg1, font=\footnotesize, text=orange!80!black] {Peut contenir des erreurs};
-\node[below=2pt of leg2, font=\footnotesize, text=teal!70!black]   {Toujours fiable};
-\node[font=\footnotesize, gray] at (2.7, -7.1) {* Toujours correct --- r\'{e}férentiel BAM};
+\node[input] (all) at (0, 0) {Paires théoriques\\[-2pt]\tiny toutes combinaisons};
+\node[label, below=2pt of all] {Ordre quadratique};
+\node[process, right=1.2cm of all] (blocking) {Blocking\\[-2pt]\tiny règles multi-passe};
+\node[label, below=2pt of blocking] {Paires candidates};
+\node[process, right=1.2cm of blocking] (splink) {Splink\\[-2pt]\tiny EM et scoring};
+\node[label, below=2pt of splink] {Paires retenues};
+\node[output, right=1.2cm of splink] (cluster) {Clustering\\[-2pt]\tiny sur graphe};
+\node[label, below=2pt of cluster] {Entités finales};
+\draw[arr] (all) -- (blocking);
+\draw[arr] (blocking) -- (splink);
+\draw[arr] (splink) -- (cluster);
 \end{tikzpicture}
-\caption{Architecture duale de \texttt{RFF.formule\_P\_clean} --- colonnes d\'{e}clar\'{e}es vs colonnes corrig\'{e}es OdC}
-\label{fig:dual-architecture}
+\caption{Réduction progressive du nombre de paires : du volume théorique quadratique aux entités finales, en passant par les paires candidates issues du blocking et les paires retenues par Splink.}
+\label{fig:blocking-impact}
 \end{figure}
 
-\subsection{Les tables de r\'{e}f\'{e}rence}
+\subsection{L'entraînement non supervisé par algorithme EM}
 
-Le projet s'appuie sur cinq tables de r\'{e}f\'{e}rence r\'{e}elles :
+L'estimation des paramètres du modèle s'effectue en deux temps, sans aucun exemple annoté. Les probabilités d'observer chaque niveau de similarité entre des enregistrements non appariés sont d'abord estimées par échantillonnage aléatoire de paires. Les paramètres du modèle sont ensuite affinés par l'algorithme EM appliqué sur des règles de blocage choisies pour ne pas biaiser l'apprentissage, en évitant le raisonnement circulaire qui consisterait à entraîner le modèle sur les mêmes critères que ceux utilisés pour la prédiction. Le worker calibre également la probabilité a priori que deux enregistrements pris au hasard correspondent, en fonction de la taille du jeu de données traité.
 
-\begin{table}[H]
+\subsection{La prédiction et la décision sur les paires}
+
+Une fois entraîné, le modèle attribue à chaque paire candidate une probabilité de correspondance. Seules les paires dont la probabilité atteint ou dépasse le seuil configuré, fixé par défaut à 0,80, sont retenues comme correspondances. Les paires en dessous du seuil sont conservées comme non résolues mais restent consultables pour analyse. Ce seuil constitue le principal levier de réglage entre la précision et le rappel du système.
+
+\section{L'enrichissement par similarité sémantique}
+
+Les fonctions de comparaison classiques comparent les enregistrements caractère par caractère et ne capturent pas la similarité de sens : deux formulations différentes d'un même nom peuvent obtenir un score modéré alors même qu'un lecteur humain comprendrait immédiatement qu'elles désignent probablement la même entreprise. Pour capter cette dimension, le pipeline propose une étape optionnelle d'enrichissement par embeddings neuronaux.
+
+Le modèle utilisé est un modèle multilingue de plongement de phrases, capable d'encoder du texte en français, en arabe ou mixte dans un espace vectoriel dense où la proximité cosinus entre deux vecteurs reflète la proximité de sens. Ce caractère multilingue est important dans le contexte marocain, où les noms d'entreprises alternent fréquemment entre les deux langues. Seuls les champs textuels porteurs de sens sont encodés, à savoir les raisons sociales déclarées et corrigées, la ville et le donneur d'ordre. Les identifiants structurés, qui ne portent pas de sens linguistique, restent comparés par correspondance exacte.
+
+Pour chaque paire candidate, la similarité cosinus entre les plongements est calculée puis combinée au score de Splink par une moyenne pondérée à parts égales. Lorsque cette étape est activée, le score combiné remplace le score de Splink pour la décision et pour le clustering. Les plongements sont mis en cache sur disque afin d'éviter de les recalculer à chaque exécution sur les mêmes données.
+
+\section{Le clustering sur graphe}
+
+Le pipeline produit à ce stade des paires de correspondances, mais l'objectif final est d'identifier des entités, c'est-à-dire des groupes d'enregistrements appartenant au même opérateur. La transformation des paires en groupes se modélise naturellement comme un problème de clustering sur graphe : les nœuds sont les enregistrements, les arêtes sont les paires retenues pondérées par leur score, et les communautés du graphe sont les entités recherchées.
+
+Deux stratégies sont proposées. Les composantes connexes forment des groupes en réunissant tous les enregistrements reliés par une chaîne de correspondances. Cette méthode est simple et déterministe, mais elle présente un risque d'enchaînement : un lien faible entre deux entités distinctes suffit à les fusionner artificiellement. L'algorithme de Leiden, qui optimise la modularité du graphe tout en garantissant des communautés bien connectées, offre une alternative plus sélective qui ne conserve que les groupes à structure interne forte. Ses paramètres, à savoir la résolution, le nombre de voisins issus des plongements et le seuil minimal des arêtes, sont configurables. Les groupes de taille excessive sont subdivisés afin d'éviter la formation de méga-groupes artificiels.
+
+\section{La matérialisation des entités}
+
+Chaque communauté d'enregistrements est transformée en une entité dotée d'un identifiant unique construit à partir du run d'exécution. Pour chaque attribut identifiant, le système applique un vote majoritaire parmi les membres du groupe afin de déterminer la valeur canonique : le Registre de Commerce canonique, le nom canonique, la banque canonique et le guichet canonique. Le nom de l'entité suit une hiérarchie de priorité qui privilégie les versions corrigées des champs lorsqu'elles sont disponibles.
+
+Un statut est attribué à chaque entité en fonction de sa confiance : les entités de confiance élevée sont approuvées automatiquement, les entités de confiance intermédiaire sont soumises à révision humaine, et les entités de faible confiance ou de taille anormale sont signalées pour examen. Cette classification permet aux analystes de concentrer leur attention sur les cas qui nécessitent réellement un jugement humain.
+
+\section{Vue d'ensemble du pipeline}
+
+La figure suivante présente l'architecture complète du pipeline, avec les neuf étapes exécutées en séquence par le worker, ainsi que les principaux paramètres qui les gouvernent.
+
+\begin{figure}[H]
 \centering
-\caption{Tables de r\'{e}f\'{e}rence du projet}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|l|c|p{9cm}|}
-\hline
-\textbf{Table} & \textbf{Lignes} & \textbf{Colonnes cl\'{e}s} \\
-\hline
-\texttt{RFF.Banque} & 48 & \texttt{ID\_BANQUE}, \texttt{LIBELLEBANQUE}, \texttt{CODE\_BAM}, \texttt{EN\_ACTIVITE} \\
-\hline
-\texttt{RFF.Guichet} & 7\,776 & \texttt{ID\_GUICHET}, \texttt{CODEGUICHET}, \texttt{CODEBANQUE}, \texttt{CODE\_BAM} \\
-\hline
-\texttt{RFF.Centre} & 108 & \texttt{NEW\_CENTRE}, \texttt{LIBELLECENTRE}, \texttt{ANC\_CENTRE}, \texttt{CODEREGION} \\
-\hline
-\texttt{RFF.Region} & 18 & \texttt{CODE\_REGION}, \texttt{LIBELLE\_REGION} \\
-\hline
-\texttt{RFF.Operation} & 1\,452 & \texttt{RTC\_ID}, \texttt{RTC\_LIB}, \texttt{Sens\_Op\'{e}ration\_ID} \\
-\hline
-\end{tabular}
-\end{table}
-
-\noindent La cha\^{i}ne relationnelle est : \texttt{Region} $\rightarrow$ \texttt{Centre} $\rightarrow$ \texttt{Guichet} $\rightarrow$ \texttt{Banque}.
-
-\subsection{Le r\'{e}férentiel canonique : \texttt{OPERATEUR\_REF}}
-
-La table \texttt{OC\_REFERENTIEL.OPERATEUR\_REF} constitue la \textbf{v\'{e}rit\'{e} terrain officielle} des op\'{e}rateurs. Elle contient les colonnes canoniques : \texttt{RC}, \texttt{RAISON\_SOCIAL}, \texttt{FJ} (forme juridique), \texttt{CAPITAL}, \texttt{ID\_FISCALE}. La jointure \texttt{formule\_P\_clean.RC\_R} $\rightarrow$ \texttt{OPERATEUR\_REF.RC} donne l'identit\'{e} canonique d'un op\'{e}rateur.
-
-\section{La probl\'{e}matique d'identit\'{e} des op\'{e}rateurs}
-
-\subsection{Nature et fr\'{e}quence des incoh\'{e}rences}
-
-L'analyse des donn\'{e}es r\'{e}elles (2\,500\,000 d\'{e}clarations dans \texttt{formule\_P\_clean}) r\'{e}v\`{e}le les patterns de corruption suivants :
-
-\begin{table}[H]
-\centering
-\caption{Patterns de corruption observ\'{e}s sur les donn\'{e}es r\'{e}elles}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|p{3cm}|p{5cm}|p{4cm}|c|}
-\hline
-\textbf{Champ} & \textbf{Type de corruption} & \textbf{Exemple} & \textbf{Taux} \\
-\hline
-\multirow{5}{*}{\texttt{RC}} & Valeur NULL & --- & 8,0\,\% \\
-\cline{2-4}
- & Pr\'{e}fixe \texttt{RC/} ajout\'{e} & \texttt{RC/040178} & 5,0\,\% \\
-\cline{2-4}
- & Z\'{e}ro en t\^{e}te manquant & \texttt{04017} au lieu de \texttt{040178} & 8,0\,\% \\
-\cline{2-4}
- & Espace ou tiret ins\'{e}r\'{e} & \texttt{040 178} & 4,0\,\% \\
-\cline{2-4}
- & Faute de frappe & \texttt{040179} & 3,0\,\% \\
-\hline
-\multirow{4}{*}{\texttt{RAISON\_SOCIALE}} & Troncature & \texttt{MARTIN SA C} & $\sim$15\,\% \\
-\cline{2-4}
- & Variante forme juridique & \texttt{SARL} $\rightarrow$ \texttt{STE}, \texttt{CIE}, \texttt{GIE} & $\sim$8\,\% \\
-\cline{2-4}
- & Suppression accents & \texttt{SOCI\'{E}T\'{E}} $\rightarrow$ \texttt{SOCIETE} & $\sim$6\,\% \\
-\cline{2-4}
- & Suffixe MAROC ajout\'{e} & \texttt{ATLAS SA} $\rightarrow$ \texttt{ATLAS SA MAROC} & $\sim$5\,\% \\
-\hline
-\texttt{DONNEUR\_ORDRE} & Alias court (premier mot) & \texttt{ATLAS IMPORT SA} $\rightarrow$ \texttt{ATLAS} & $\sim$50\,\% \\
-\hline
-\end{tabular}
-\end{table}
-
-\subsection{Impact op\'{e}rationnel}
-
-Ces incoh\'{e}rences ont des cons\'{e}quences directes :
-\begin{itemize}
-    \item \textbf{Production statistique fauss\'{e}e} : un op\'{e}rateur fragment\'{e} en 20 identit\'{e}s appara\^{i}t comme 20 petits op\'{e}rateurs.
-    \item \textbf{Contr\^{o}le r\'{e}glementaire compromis} : la v\'{e}rification de conformit\'{e} devient impossible si les d\'{e}clarations sont dispers\'{e}es.
-    \item \textbf{Jointure avec \texttt{OPERATEUR\_REF} d\'{e}faillante} : un RC mal format\'{e} ne trouve pas de correspondance.
-    \item \textbf{Suivi temporel impossible} : une entreprise qui change de forme juridique ne peut pas '\^{e}tre suivie.
-\end{itemize}
-
-\section{D\'{e}finition formelle de l'Entity Resolution}
-
-\subsection{Taxonomie du probl\`{e}me}
-
-\begin{table}[H]
-\centering
-\caption{Taxonomie des probl\`{e}mes d'Entity Resolution}
-\renewcommand{\arraystretch}{1.4}
-\begin{tabular}{|p{3.5cm}|p{5cm}|p{5cm}|}
-\hline
-\textbf{Variante} & \textbf{D\'{e}finition} & \textbf{Application} \\
-\hline
-D\'{e}duplication & Identifier les doublons au sein d'une seule base & \checkmark\ Cas principal \\
-\hline
-Liaison d'enregistrements & Relier des enregistrements entre deux bases & Secondaire \\
-\hline
-R\'{e}solution de r\'{e}férences & R\'{e}soudre les r\'{e}férences dans des textes non structur\'{e}s & Non applicable \\
-\hline
-\end{tabular}
-\end{table}
-
-\subsection{Formulation formelle}
-
-Soit $\mathcal{D} = \{d_1, d_2, \ldots, d_n\}$ l'ensemble des d\'{e}clarations. L'Entity Resolution consiste \`{a} construire une \textbf{partition} $\mathcal{C} = \{C_1, C_2, \ldots, C_k\}$ de $\mathcal{D}$ telle que tous les \'{e}l\'{e}ments d'un m\^{e}me cluster appartiennent au m\^{e}me op\'{e}rateur r\'{e}el.
-
-Le d\'{e}fi de complexit\'{e} combinatoire : avec $n = 10\,000$ d\'{e}clarations, le nombre de paires possibles est $\binom{10\,000}{2} \approx 50$ millions. Avec $n = 100\,000$, c'est $\approx 5$ milliards. Seul le \textbf{blocage} rend ce probl\`{e}me tractable.
-
-\subsection{Le mod\`{e}le probabiliste de Fellegi-Sunter}
-
-Le mod\`{e}le de Fellegi-Sunter (1969) est le fondement de Splink. Pour chaque champ $k$ :
-\begin{itemize}
-    \item $m_k = P(\text{accord sur champ } k \mid \text{paire} \in M)$ --- probabilit\'{e} d'accord sachant match
-    \item $u_k = P(\text{accord sur champ } k \mid \text{paire} \in U)$ --- probabilit\'{e} d'accord par hasard
-\end{itemize}
-
-Le \textbf{poids de match} :
-$$W = \sum_{k} \log_2\left(\frac{m_k}{u_k}\right)$$
-
-L'algorithme \textbf{EM} (Expectation-Maximization) estime $m_k$ et $u_k$ \textbf{sans donn\'{e}es labellis\'{e}es} en alternant : (E) calculer $P(M \mid \gamma)$ pour chaque paire, (M) recalculer $m_k$ et $u_k$.
-
-\subsection{La similarit\'{e} JaroWinkler}
-
-$$\text{JaroWinkler}(s_1, s_2) = \text{Jaro}(s_1, s_2) + \ell \cdot p \cdot (1 - \text{Jaro}(s_1, s_2))$$
-
-o\`{u} $\ell$ est la longueur du pr\'{e}fixe commun (max 4) et $p = 0,1$.
-
-\begin{table}[H]
-\centering
-\caption{Exemples de scores JaroWinkler}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|l|l|c|l|}
-\hline
-\textbf{Cha\^{i}ne 1} & \textbf{Cha\^{i}ne 2} & \textbf{Score JW} & \textbf{Interpr\'{e}tation} \\
-\hline
-\texttt{ATLAS IMPORT SA} & \texttt{ATLAS IMPORT SARL} & 0,97 & M\^{e}me entreprise \\
-\hline
-\texttt{RC/040178} & \texttt{040178} & 0,94 & M\^{e}me RC, pr\'{e}fixe diff\'{e}rent \\
-\hline
-\texttt{CHAUVET STE} & \texttt{CHAUVEAU STE} & 0,98 & Entreprises \textbf{diff\'{e}rentes} ! \\
-\hline
-\end{tabular}
-\end{table}
-
-\noindent La ligne 3 illustre le probl\`{e}me fondamental : le JaroWinkler seul ne suffit pas.
-
-\subsection{Contrainte m\'{e}tier --- le veto RC}
-
-Le RC est un identifiant \textbf{l\'{e}galement unique} au Maroc. La r\`{e}gle de veto :
-\begin{center}
-\textit{Si $RC_i \neq \emptyset$ et $RC_j \neq \emptyset$ et $RC_i \neq RC_j$ $\Rightarrow$ rejeter la fusion, quelle que soit la similarit\'{e}.}
-\end{center}
-
-\section{Exploration des approches --- parcours exp\'{e}rimental}
-
-Avant d'arriver \`{a} l'architecture finale, nous avons explor\'{e} syst\'{e}matiquement diff\'{e}rentes approches. Cette section documente ce parcours.
-
-\subsection{Phase 1 : approches d\'{e}terministes}
-
-Les premi\`{e}res approches test\'{e}es \'{e}taient bas\'{e}es sur des r\`{e}gles d\'{e}terministes :
-
-\begin{itemize}
-    \item \textbf{Correspondance exacte sur RC} : simple mais ne g\`{e}re pas le bruit (RC/040178 $\neq$ 040178)
-    \item \textbf{Nettoyage + correspondance exacte} : apr\`{e}s normalisation du RC, correspondance directe --- taux de couverture $\sim$70\,\%
-    \item \textbf{JaroWinkler seul} : seuil $\geq$ 0,95 sur le RC --- meilleure couverture mais faux positifs sur les noms courts
-\end{itemize}
-
-\noindent Ces approches ont r\'{e}v\'{e}l\'{e} que la \textbf{normalisation pr\'{e}alable est indispensable} et qu'aucune r\`{e}gle unique ne suffit.
-
-\subsection{Phase 2 : Splink --- Entity Resolution probabiliste}
-
-Splink impl\'{e}mente le mod\`{e}le de Fellegi-Sunter avec EM. Nous l'avons choisi pour sa capacit\'{e} \`{a} g\'{e}rer le bruit sans donn\'{e}es labellis\'{e}es.
-
-\subsubsection{R\`{e}gles de blocage}
-
-Apr\`{e}s analyse de la cardinalit\'{e} des champs, 7 r\`{e}gles de blocage ont \'{e}t\'{e} d\'{e}finies :
-
-\begin{enumerate}
-    \item \texttt{block\_on('RC')} --- RC dirty, haute cardinalit\'{e}
-    \item \texttt{block\_on('RC\_R')} --- RC canonique OdC, 0\,\% bruit
-    \item \texttt{block\_on('CODE\_BANQUE\_BAM', 'substr(RS\_R,1,8)')} --- m\^{e}me banque + d\'{e}but nom
-    \item \texttt{block\_on('CODE\_BANQUE\_BAM', 'substr(RS,1,8)')} --- fallback anciens records
-    \item \texttt{block\_on('CENTRE\_R', 'CODE\_OPERATION\_R')} --- $108 \times 1\,452$ combinaisons
-    \item \texttt{block\_on('CODE\_GUICHET\_BAM', 'substr(RS\_R,1,6)')} --- m\^{e}me agence + nom
-    \item \texttt{block\_on('VILLE', 'substr(RS,1,6)')} --- fallback g\'{e}ographique
-\end{enumerate}
-
-\noindent\textbf{R\`{e}gle rejet\'{e}e :} \texttt{CODE\_BANQUE\_BAM + ANNEE + SENS} --- 3 champs \`{a} faible cardinalit\'{e} ($35 \times 5 \times 2$) g\'{e}nant un m\'{e}ga-cluster de 32\,000 enregistrements qui corrompt l'entra\^{i}nement EM.
-
-\subsubsection{Comparaisons et entra\^{i}nement EM}
-
-Pour chaque paire candidate, Splink calcule des scores de similarit\'{e} champ par champ (JaroWinkler pour les noms, ExactMatch pour les codes). Trois sessions d'entra\^{i}nement EM rotatives couvrent tous les champs.
-
-\subsubsection{R\'{e}sultats du sweep de seuil --- Splink seul}
-
-\begin{table}[H]
-\centering
-\caption{R\'{e}sultats du sweep de seuil --- Splink seul (donn\'{e}es synth\'{e}tiques 100K)}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|c|c|c|c|c|c|}
-\hline
-\textbf{Seuil} & \textbf{Clusters} & \textbf{Pr\'{e}cision} & \textbf{Recall} & \textbf{F1} & \textbf{M\'{e}ga-clusters} \\
-\hline
-0,70 & 672 & 67,2\,\% & 100\,\% & 73,5\,\% & 4 \\
-\hline
-0,80 & 700 & 70,0\,\% & 100\,\% & 76,1\,\% & 2 \\
-\hline
-0,90 & 722 & 72,2\,\% & 100\,\% & 78,2\,\% & 2 \\
-\hline
-\textbf{0,95} & \textbf{727} & \textbf{72,7\,\%} & \textbf{100\,\%} & \textbf{78,6\,\%} & \textbf{2} \\
-\hline
-\end{tabular}
-\end{table}
-
-\noindent L'approche optimale (seuil 0,95) produit 727 clusters pour 1\,000 entreprises r\'{e}elles. Le recall de 100\,\% signifie qu'aucun vrai match n'est rat\'{e}. Les 273 clusters sur-fusionn\'{e}s (pr\'{e}cision 72,7\,\%) constituent le probl\`{e}me r\'{e}siduel.
-
-\subsection{Phase 3 : clustering non supervis\'{e}}
-
-L'id\'{e}e est de construire un graphe de similarit\'{e} puis d'extraire des communaut\'{e}s sans labels.
-
-\subsubsection{Approche 1 : Composantes connexes (Connected Components)}
-
-Le graphe est construit \`{a} partir des paires Splink (seuil $\geq$ threshold). Les composantes connexes donnent les clusters. Simple, d\'{e}terministe, reproductible.
-
-\subsubsection{Approche 2 : Leiden}
-
-L'algorithme de Leiden (Traag \textit{et al.}, 2019) est une am\'{e}lioration de Louvain qui garantit des communaut\'{e}s bien d\'{e}finies. Il prend en entr\'{e}e un graphe et une r\'{e}solution (param\`{e}tre de granularit\'{e}).
-
-\subsubsection{Approche 3 : Embeddings neuronaux + Leiden}
-
-Nous avons test\'{e} l'utilisation de mod\`{e}les de type sentence-transformers pour g\'{e}n\'{e}rer des repr\'{e}sentations vectorielles des enregistrements, puis clustering par Leiden sur le graphe de similarit\'{e} cosinus.
-
-\begin{table}[H]
-\centering
-\caption{R\'{e}sultats des approches de clustering --- Exp\'{e}rience 18 (13\,337 enregistrements, 520 entit\'{e}s ground truth)}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|l|c|c|c|c|c|}
-\hline
-\textbf{M\'{e}thode} & \textbf{F1\_pair} & \textbf{ARI} & \textbf{NMI} & \textbf{Clusters} & \textbf{Dur\'{e}e} \\
-\hline
-TF-IDF + Leiden (nn=20, r=2,0) & \textbf{0,348} & \textbf{0,380} & \textbf{0,845} & 170 & 4,4s \\
-\hline
-TF-IDF + Leiden (nn=15, r=1,0) & 0,277 & 0,306 & 0,819 & 167 & 3,6s \\
-\hline
-Embeddings + Leiden (nn=20, r=2,0) & 0,262 & 0,273 & 0,781 & 47 & 4,4s \\
-\hline
-Embeddings + HDBSCAN (mcs=20) & 0,138 & 0,371 & 0,836 & 63 & 31,7s \\
-\hline
-Splink CC (seuil=0,65) & 0,000 & 0,238 & 0,887 & 338 & 0,5s \\
-\hline
-Splink + Leiden (0,65/1,5) & 0,000 & 0,238 & 0,887 & 338 & 0,5s \\
-\hline
-\end{tabular}
-\end{table}
-
-\noindent\textbf{Observations cl\'{e}s :}
-\begin{itemize}
-    \item Le TF-IDF + Leiden surpasse les embeddings neuronaux (F1 = 0,348 vs 0,262) --- les features textuelles simples sont plus discriminantes pour les noms d'entreprises marocaines.
-    \item Les approches Splink produisent F1 = 0,000 car les paires candidates (6\,920 paires) ne couvrent que 0,008\,\% de toutes les paires possibles --- un probl\`{e}me de couverture des donn\'{e}es, pas de m\'{e}thode.
-    \item L'embeddings + HDBSCAN produit 63 clusters mais avec un ARI \'{e}lev\'{e} (0,371) --- bonne qualit\'{e} mais sur-fusion.
-\end{itemize}
-
-\subsection{Synth\`{e}se des exp\'{e}riences}
-
-\begin{table}[H]
-\centering
-\caption{Synth\`{e}se des approches test\'{e}es}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|p{2.5cm}|p{3cm}|p{3cm}|p{4cm}|}
-\hline
-\textbf{Phase} & \textbf{Approche} & \textbf{R\'{e}sultat principal} & \textbf{D\'{e}cision} \\
-\hline
-D\'{e}terministe & RC exact + nettoyage & 70\,\% couverture & Insuffisant \\
-\hline
-Probabiliste & Splink seul & P=72,7\,\%, R=100\,\% & Retenu (base) \\
-\hline
-Non supervis\'{e} & TF-IDF + Leiden & F1=0,348, NMI=0,845 & Prometteur \\
-\hline
-Neural & Embeddings + Leiden & F1=0,262 & Inf\'{e}rieur au TF-IDF \\
-\hline
-Hybride & Splink + Leiden & 502 clusters, 349s & Architecture finale \\
-\hline
-\end{tabular}
-\end{table}
+\begin{tikzpicture}[
+  stage/.style={rectangle, rounded corners=3pt, draw=black, thick, minimum width=12cm, minimum height=0.95cm, align=center, font=\footnotesize},
+  prep/.style={stage, fill=teal!10, draw=teal!60!black},
+  splinkst/.style={stage, fill=orange!12, draw=orange!60!black},
+  enrich/.style={stage, fill=violet!10, draw=violet!60!black},
+  groupst/.style={stage, fill=green!10, draw=green!60!black},
+  arr/.style={-{Latex[length=2mm]}, thick},
+  note/.style={font=\scriptsize, text=gray!70!black, align=center}
+]
+\node[prep] (s1) at (0, 0) {1. Chargement --- extraction SQL des colonnes configurées depuis la table source};
+\node[prep, below=0.45cm of s1] (s2) {2. Nettoyage --- espaces, valeurs nulles, caractères invisibles, déduplication exacte};
+\node[prep, below=0.45cm of s2] (s3) {3. Normalisation --- Registre de Commerce, codes banque et guichet, noms de sociétés};
+\node[splinkst, below=0.45cm of s3] (s4) {4. Splink --- entraînement EM non supervisé puis prédiction des paires candidates};
+\node[splinkst, below=0.45cm of s4] (s5) {5. Décision --- paires retenues si probabilité supérieure ou égale au seuil de 0,80};
+\node[enrich, below=0.45cm of s5] (s6) {6. Embeddings, étape optionnelle --- similarité cosinus combinée au score Splink};
+\node[groupst, below=0.45cm of s6] (s7) {7. Clustering --- composantes connexes ou algorithme de Leiden sur le graphe des paires};
+\node[groupst, below=0.45cm of s7] (s8) {8. Matérialisation --- identifiants d'entités, attributs canoniques par vote, statuts};
+\node[groupst, below=0.45cm of s8] (s9) {9. Sortie --- écriture des entités et des paires dans les bases de destination};
+\draw[arr] (s1) -- (s2);
+\draw[arr] (s2) -- (s3);
+\draw[arr] (s3) -- (s4);
+\draw[arr] (s4) -- (s5);
+\draw[arr] (s5) -- (s6);
+\draw[arr] (s6) -- (s7);
+\draw[arr] (s7) -- (s8);
+\draw[arr] (s8) -- (s9);
+\end{tikzpicture}
+\caption{Architecture du pipeline d'Entity Resolution en neuf étapes, regroupées en quatre blocs : préparation des données, moteur probabiliste Splink, enrichissement sémantique optionnel, et regroupement avec matérialisation des entités.}
+\label{fig:pipeline}
+\end{figure}
 
 \section*{Conclusion}
 
-Ce chapitre a \'{e}tabli le diagnostic de la probl\'{e}matique et document\'{e} l'exploration syst\'{e}matique des approches : des m\'{e}thodes d\'{e}terministes au clustering non supervis\'{e}. Les exp\'{e}riences r\'{e}alis\'{e}es d\'{e}montrent que le parcours exp\'{e}rimental est aussi important que l'architecture finale. Le chapitre suivant pr\'{e}sente l'impl\'{e}mentation de l'architecture retenue.
+Ce chapitre a présenté la réponse méthodologique à la problématique établie au premier chapitre. Le linkage probabiliste permet de combiner des indices individuellement faibles ou indisponibles en une décision robuste, sans nécessiter de données annotées grâce à l'entraînement non supervisé. Le blocking rend le calcul praticable, la normalisation prépare le terrain, les plongements neuronaux apportent une compréhension du sens, et le clustering transforme les paires en entités exploitables avec leurs attributs canoniques. Le chapitre suivant décrit comment ce pipeline a été intégré dans une plateforme web opérationnelle.
